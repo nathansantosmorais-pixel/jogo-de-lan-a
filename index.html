@@ -1,1 +1,553 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Stickman Archer</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #1a1a2e;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #eee;
+    overflow: hidden;
+    touch-action: none;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 8px;
+    color: #e94560;
+    text-shadow: 0 0 10px #e9456088;
+  }
+  #gameContainer {
+    position: relative;
+    border: 3px solid #e94560;
+    border-radius: 8px;
+    box-shadow: 0 0 30px #e9456044;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    background: linear-gradient(to bottom, #0f0c29, #302b63, #24243e);
+    cursor: crosshair;
+  }
+  #ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  .bar {
+    width: 120px;
+    height: 14px;
+    background: #333;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid #555;
+  }
+  .bar-fill {
+    height: 100%;
+    transition: width 0.2s;
+  }
+  #playerBar { background: #4ade80; }
+  #enemyBar { background: #f87171; }
+  #score {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    color: #fbbf24;
+    text-shadow: 0 0 8px #fbbf24aa;
+  }
+  #message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-shadow: 0 0 20px #000;
+  }
+  #controls {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 13px;
+    color: #aaa;
+    max-width: 480px;
+  }
+  button {
+    margin-top: 10px;
+    padding: 10px 24px;
+    font-size: 16px;
+    background: #e94560;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button:hover { background: #ff6b81; }
+  button:active { transform: scale(0.97); }
+</style>
+</head>
+<body>
+  <h1>🏹 Stickman Archer</h1>
+  <div id="gameContainer">
+    <canvas id="game" width="800" height="450"></canvas>
+    <div id="ui">
+      <div>
+        <div style="margin-bottom:4px">Você</div>
+        <div class="bar"><div id="playerBar" class="bar-fill" style="width:100%"></div></div>
+      </div>
+      <div style="text-align:right">
+        <div style="margin-bottom:4px">Inimigo</div>
+        <div class="bar" style="margin-left:auto"><div id="enemyBar" class="bar-fill" style="width:100%"></div></div>
+      </div>
+    </div>
+    <div id="score">Pontos: 0</div>
+    <div id="message"></div>
+  </div>
+  <div id="controls">
+    <b>Como jogar:</b> Clique e arraste para trás no stickman (ou qualquer lugar) para mirar e carregar força. Solte para atirar.<br>
+    Acertar a cabeça = dano máximo! Desvie das flechas do inimigo.
+    <br>
+    <button id="restartBtn" style="display:none" onclick="restartGame()">Jogar de novo</button>
+  </div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const playerBar = document.getElementById('playerBar');
+const enemyBar = document.getElementById('enemyBar');
+const scoreEl = document.getElementById('score');
+const messageEl = document.getElementById('message');
+const restartBtn = document.getElementById('restartBtn');
+
+function resize() {
+  const maxW = Math.min(800, window.innerWidth - 20);
+  const ratio = 800 / 450;
+  canvas.style.width = maxW + 'px';
+  canvas.style.height = (maxW / ratio) + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+let gameState = 'playing';
+let score = 0;
+let playerHP = 100;
+let enemyHP = 100;
+
+const gravity = 0.25;
+const groundY = 400;
+
+const player = { x: 80, y: groundY, facing: 1 };
+const enemy = { x: 700, y: groundY, facing: -1, shootCooldown: 0, aimAngle: 0 };
+
+let arrows = [];
+let isAiming = false;
+let aimStart = { x: 0, y: 0 };
+let aimCurrent = { x: 0, y: 0 };
+let particles = [];
+
+function showMessage(text, duration = 1500) {
+  messageEl.textContent = text;
+  messageEl.style.opacity = 1;
+  setTimeout(() => { messageEl.style.opacity = 0; }, duration);
+}
+
+function createParticles(x, y, color, count = 8) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6 - 2,
+      life: 30 + Math.random() * 20,
+      color
+    });
+  }
+}
+
+function drawStickman(x, y, facing, isPlayer, armAngle = 0, bowDrawn = 0) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(facing, 1);
+
+  ctx.strokeStyle = isPlayer ? '#4ade80' : '#f87171';
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+
+  // Cabeça
+  ctx.beginPath();
+  ctx.arc(0, -55, 12, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Corpo
+  ctx.beginPath();
+  ctx.moveTo(0, -43);
+  ctx.lineTo(0, -10);
+  ctx.stroke();
+
+  // Pernas
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(-12, 0);
+  ctx.moveTo(0, -10);
+  ctx.lineTo(12, 0);
+  ctx.stroke();
+
+  // Braço livre
+  ctx.beginPath();
+  ctx.moveTo(0, -35);
+  ctx.lineTo(-15, -20);
+  ctx.stroke();
+
+  // Braço do arco
+  const bowX = 8;
+  const bowY = -35;
+  ctx.beginPath();
+  ctx.moveTo(0, -35);
+  ctx.lineTo(bowX + Math.cos(armAngle) * 20, bowY + Math.sin(armAngle) * 20);
+  ctx.stroke();
+
+  // Arco
+  ctx.beginPath();
+  ctx.arc(bowX, bowY, 18, -1.2 + armAngle, 1.2 + armAngle);
+  ctx.stroke();
+
+  // Corda puxada
+  if (bowDrawn > 0) {
+    const pull = bowDrawn * 12;
+    ctx.beginPath();
+    ctx.moveTo(bowX + Math.cos(armAngle - 1.2) * 18, bowY + Math.sin(armAngle - 1.2) * 18);
+    ctx.lineTo(bowX - Math.cos(armAngle) * pull, bowY - Math.sin(armAngle) * pull);
+    ctx.lineTo(bowX + Math.cos(armAngle + 1.2) * 18, bowY + Math.sin(armAngle + 1.2) * 18);
+    ctx.strokeStyle = '#ccc';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawArrow(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(Math.atan2(a.vy, a.vx));
+
+  ctx.strokeStyle = a.fromPlayer ? '#fbbf24' : '#fb7185';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-12, 0);
+  ctx.lineTo(12, 0);
+  ctx.stroke();
+
+  ctx.fillStyle = a.fromPlayer ? '#fbbf24' : '#fb7185';
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(6, -4);
+  ctx.lineTo(6, 4);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(-12, 0);
+  ctx.lineTo(-16, -3);
+  ctx.moveTo(-12, 0);
+  ctx.lineTo(-16, 3);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function getAimPower() {
+  const dx = aimStart.x - aimCurrent.x;
+  const dy = aimStart.y - aimCurrent.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  return Math.min(dist / 8, 18);
+}
+
+function getAimAngle() {
+  return Math.atan2(-(aimStart.y - aimCurrent.y), aimStart.x - aimCurrent.x);
+}
+
+function shootArrow(fromPlayer, x, y, angle, power) {
+  const speed = power * 0.9;
+  arrows.push({
+    x, y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    fromPlayer,
+    stuck: false,
+    life: 300
+  });
+}
+
+function enemyAI() {
+  if (gameState !== 'playing') return;
+  enemy.shootCooldown--;
+
+  if (enemy.shootCooldown <= 0 && Math.random() < 0.02) {
+    const dx = player.x - enemy.x;
+    const dy = (player.y - 40) - (enemy.y - 40);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    let angle = Math.atan2(dy, dx);
+    angle -= 0.15 + (dist / 2000);
+    angle += (Math.random() - 0.5) * 0.25;
+
+    const power = 10 + Math.random() * 6;
+    shootArrow(false, enemy.x - 20, enemy.y - 40, angle, power);
+    enemy.shootCooldown = 80 + Math.random() * 60;
+  }
+}
+
+function checkHit(arrow) {
+  const targets = arrow.fromPlayer ? [enemy] : [player];
+  for (const t of targets) {
+    const headX = t.x;
+    const headY = t.y - 55;
+    if (Math.hypot(arrow.x - headX, arrow.y - headY) < 14) {
+      return { target: t, damage: 35, isHead: true };
+    }
+    const bodyX = t.x;
+    const bodyY = t.y - 25;
+    if (Math.hypot(arrow.x - bodyX, arrow.y - bodyY) < 18) {
+      return { target: t, damage: 18, isHead: false };
+    }
+  }
+  return null;
+}
+
+function update() {
+  if (gameState !== 'playing') return;
+
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    const a = arrows[i];
+    if (a.stuck) {
+      a.life--;
+      if (a.life <= 0) arrows.splice(i, 1);
+      continue;
+    }
+
+    a.vy += gravity;
+    a.x += a.vx;
+    a.y += a.vy;
+
+    if (a.y > groundY - 5) {
+      a.y = groundY - 5;
+      a.vx *= 0.6;
+      a.vy = 0;
+      a.stuck = true;
+      a.life = 60;
+      continue;
+    }
+
+    if (a.x < -50 || a.x > 850 || a.y < -50) {
+      arrows.splice(i, 1);
+      continue;
+    }
+
+    const hit = checkHit(a);
+    if (hit) {
+      if (hit.target === player) {
+        playerHP = Math.max(0, playerHP - hit.damage);
+        playerBar.style.width = playerHP + '%';
+        createParticles(a.x, a.y, '#f87171');
+        if (hit.isHead) showMessage('HEADSHOT!');
+      } else {
+        enemyHP = Math.max(0, enemyHP - hit.damage);
+        enemyBar.style.width = enemyHP + '%';
+        score += hit.isHead ? 50 : 20;
+        scoreEl.textContent = 'Pontos: ' + score;
+        createParticles(a.x, a.y, '#4ade80');
+        if (hit.isHead) showMessage('HEADSHOT! +50');
+      }
+      arrows.splice(i, 1);
+
+      if (playerHP <= 0) {
+        gameState = 'lost';
+        showMessage('VOCÊ PERDEU!', 99999);
+        restartBtn.style.display = 'inline-block';
+      } else if (enemyHP <= 0) {
+        gameState = 'won';
+        score += 100;
+        scoreEl.textContent = 'Pontos: ' + score;
+        showMessage('VOCÊ VENCEU! +100', 99999);
+        restartBtn.style.display = 'inline-block';
+      }
+    }
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.1;
+    p.life--;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  enemyAI();
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Chão
+  ctx.fillStyle = '#2d3748';
+  ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+  ctx.strokeStyle = '#4a5568';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, groundY);
+  ctx.lineTo(canvas.width, groundY);
+  ctx.stroke();
+
+  // Linha de mira
+  if (isAiming && gameState === 'playing') {
+    const power = getAimPower();
+    const angle = getAimAngle();
+
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    let predX = player.x + 15;
+    let predY = player.y - 40;
+    let predVX = Math.cos(angle) * power * 0.9;
+    let predVY = Math.sin(angle) * power * 0.9;
+    ctx.moveTo(predX, predY);
+    for (let t = 0; t < 40; t++) {
+      predX += predVX;
+      predY += predVY;
+      predVY += gravity;
+      ctx.lineTo(predX, predY);
+      if (predY > groundY) break;
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('Força: ' + Math.round(power), aimCurrent.x + 10, aimCurrent.y - 10);
+  }
+
+  let playerArm = 0;
+  let playerDraw = 0;
+  if (isAiming) {
+    playerArm = getAimAngle();
+    playerDraw = Math.min(getAimPower() / 18, 1);
+  }
+  drawStickman(player.x, player.y, 1, true, playerArm, playerDraw);
+  drawStickman(enemy.x, enemy.y, -1, false, enemy.aimAngle, 0);
+
+  arrows.forEach(drawArrow);
+
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life / 50;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  });
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function getPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return {
+    x: (clientX - rect.left) * scaleX,
+    y: (clientY - rect.top) * scaleY
+  };
+}
+
+canvas.addEventListener('mousedown', e => {
+  if (gameState !== 'playing') return;
+  isAiming = true;
+  aimStart = { x: player.x + 10, y: player.y - 40 };
+  aimCurrent = getPos(e);
+});
+
+canvas.addEventListener('mousemove', e => {
+  if (!isAiming) return;
+  aimCurrent = getPos(e);
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (!isAiming || gameState !== 'playing') return;
+  isAiming = false;
+  const power = getAimPower();
+  if (power > 2) {
+    shootArrow(true, player.x + 15, player.y - 40, getAimAngle(), power);
+  }
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  if (gameState !== 'playing') return;
+  isAiming = true;
+  aimStart = { x: player.x + 10, y: player.y - 40 };
+  aimCurrent = getPos(e);
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!isAiming) return;
+  aimCurrent = getPos(e);
+}, { passive: false });
+
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!isAiming || gameState !== 'playing') return;
+  isAiming = false;
+  const power = getAimPower();
+  if (power > 2) {
+    shootArrow(true, player.x + 15, player.y - 40, getAimAngle(), power);
+  }
+}, { passive: false });
+
+function restartGame() {
+  gameState = 'playing';
+  playerHP = 100;
+  enemyHP = 100;
+  score = 0;
+  arrows = [];
+  particles = [];
+  enemy.shootCooldown = 60;
+  playerBar.style.width = '100%';
+  enemyBar.style.width = '100%';
+  scoreEl.textContent = 'Pontos: 0';
+  messageEl.style.opacity = 0;
+  restartBtn.style.display = 'none';
+}
+
+enemy.shootCooldown = 90;
+loop();
+</script>
+</body>
+</html>
