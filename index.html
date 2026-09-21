@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Stickman Archer</title>
+<title>Stickman Archer - Alvo</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -48,28 +47,22 @@
     font-size: 14px;
     font-weight: bold;
   }
-  .bar {
-    width: 120px;
-    height: 14px;
-    background: #333;
-    border-radius: 7px;
-    overflow: hidden;
-    border: 1px solid #555;
-  }
-  .bar-fill {
-    height: 100%;
-    transition: width 0.2s;
-  }
-  #playerBar { background: #4ade80; }
-  #enemyBar { background: #f87171; }
   #score {
     position: absolute;
     top: 10px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 18px;
+    font-size: 20px;
     color: #fbbf24;
     text-shadow: 0 0 8px #fbbf24aa;
+  }
+  #shots {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 14px;
+    color: #aaa;
   }
   #message {
     position: absolute;
@@ -103,41 +96,29 @@
     font-weight: bold;
   }
   button:hover { background: #ff6b81; }
-  button:active { transform: scale(0.97); }
 </style>
 </head>
 <body>
-  <h1>🏹 Stickman Archer</h1>
+  <h1>🏹 Stickman Archer - Alvo</h1>
   <div id="gameContainer">
     <canvas id="game" width="800" height="450"></canvas>
-    <div id="ui">
-      <div>
-        <div style="margin-bottom:4px">Você</div>
-        <div class="bar"><div id="playerBar" class="bar-fill" style="width:100%"></div></div>
-      </div>
-      <div style="text-align:right">
-        <div style="margin-bottom:4px">Inimigo</div>
-        <div class="bar" style="margin-left:auto"><div id="enemyBar" class="bar-fill" style="width:100%"></div></div>
-      </div>
-    </div>
     <div id="score">Pontos: 0</div>
+    <div id="shots">Flechas: 0</div>
     <div id="message"></div>
   </div>
   <div id="controls">
-    <b>Como jogar:</b> Clique e arraste para trás no stickman (ou qualquer lugar) para mirar e carregar força. Solte para atirar.<br>
-    Acertar a cabeça = dano máximo! Desvie das flechas do inimigo.
+    <b>Como jogar:</b> Clique e arraste para mirar e carregar a força. Solte para atirar no alvo.<br>
+    Centro = 100 pontos | Amarelo = 50 | Vermelho = 25 | Branco = 10
     <br>
-    <button id="restartBtn" style="display:none" onclick="restartGame()">Jogar de novo</button>
+    <button onclick="resetScore()">Zerar Pontuação</button>
   </div>
 
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const playerBar = document.getElementById('playerBar');
-const enemyBar = document.getElementById('enemyBar');
 const scoreEl = document.getElementById('score');
+const shotsEl = document.getElementById('shots');
 const messageEl = document.getElementById('message');
-const restartBtn = document.getElementById('restartBtn');
 
 function resize() {
   const maxW = Math.min(800, window.innerWidth - 20);
@@ -148,47 +129,51 @@ function resize() {
 resize();
 window.addEventListener('resize', resize);
 
-let gameState = 'playing';
 let score = 0;
-let playerHP = 100;
-let enemyHP = 100;
+let shots = 0;
 
 const gravity = 0.25;
 const groundY = 400;
 
-const player = { x: 80, y: groundY, facing: 1 };
-const enemy = { x: 700, y: groundY, facing: -1, shootCooldown: 0, aimAngle: 0 };
+const player = { x: 80, y: groundY };
+
+// Alvo
+const target = {
+  x: 650,
+  y: 220,
+  radius: 70
+};
 
 let arrows = [];
 let isAiming = false;
 let aimStart = { x: 0, y: 0 };
 let aimCurrent = { x: 0, y: 0 };
 let particles = [];
+let stuckArrows = []; // flechas que ficaram no alvo
 
-function showMessage(text, duration = 1500) {
+function showMessage(text, duration = 1200) {
   messageEl.textContent = text;
   messageEl.style.opacity = 1;
   setTimeout(() => { messageEl.style.opacity = 0; }, duration);
 }
 
-function createParticles(x, y, color, count = 8) {
+function createParticles(x, y, color, count = 10) {
   for (let i = 0; i < count; i++) {
     particles.push({
       x, y,
-      vx: (Math.random() - 0.5) * 6,
-      vy: (Math.random() - 0.5) * 6 - 2,
-      life: 30 + Math.random() * 20,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8 - 2,
+      life: 25 + Math.random() * 20,
       color
     });
   }
 }
 
-function drawStickman(x, y, facing, isPlayer, armAngle = 0, bowDrawn = 0) {
+function drawStickman(x, y, armAngle = 0, bowDrawn = 0) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(facing, 1);
 
-  ctx.strokeStyle = isPlayer ? '#4ade80' : '#f87171';
+  ctx.strokeStyle = '#4ade80';
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
 
@@ -230,7 +215,7 @@ function drawStickman(x, y, facing, isPlayer, armAngle = 0, bowDrawn = 0) {
   ctx.arc(bowX, bowY, 18, -1.2 + armAngle, 1.2 + armAngle);
   ctx.stroke();
 
-  // Corda puxada
+  // Corda
   if (bowDrawn > 0) {
     const pull = bowDrawn * 12;
     ctx.beginPath();
@@ -245,19 +230,49 @@ function drawStickman(x, y, facing, isPlayer, armAngle = 0, bowDrawn = 0) {
   ctx.restore();
 }
 
+function drawTarget() {
+  const zones = [
+    { r: 70, color: '#f8fafc' },   // branco externo
+    { r: 55, color: '#ef4444' },   // vermelho
+    { r: 40, color: '#f8fafc' },   // branco
+    { r: 25, color: '#eab308' },   // amarelo
+    { r: 12, color: '#ef4444' }    // centro vermelho
+  ];
+
+  zones.forEach(z => {
+    ctx.beginPath();
+    ctx.arc(target.x, target.y, z.r, 0, Math.PI * 2);
+    ctx.fillStyle = z.color;
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  });
+
+  // Cruz no centro
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(target.x - 8, target.y);
+  ctx.lineTo(target.x + 8, target.y);
+  ctx.moveTo(target.x, target.y - 8);
+  ctx.lineTo(target.x, target.y + 8);
+  ctx.stroke();
+}
+
 function drawArrow(a) {
   ctx.save();
   ctx.translate(a.x, a.y);
   ctx.rotate(Math.atan2(a.vy, a.vx));
 
-  ctx.strokeStyle = a.fromPlayer ? '#fbbf24' : '#fb7185';
+  ctx.strokeStyle = '#fbbf24';
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(-12, 0);
   ctx.lineTo(12, 0);
   ctx.stroke();
 
-  ctx.fillStyle = a.fromPlayer ? '#fbbf24' : '#fb7185';
+  ctx.fillStyle = '#fbbf24';
   ctx.beginPath();
   ctx.moveTo(12, 0);
   ctx.lineTo(6, -4);
@@ -278,131 +293,95 @@ function drawArrow(a) {
 function getAimPower() {
   const dx = aimStart.x - aimCurrent.x;
   const dy = aimStart.y - aimCurrent.y;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  return Math.min(dist / 8, 18);
+  return Math.min(Math.sqrt(dx * dx + dy * dy) / 8, 18);
 }
 
 function getAimAngle() {
   return Math.atan2(-(aimStart.y - aimCurrent.y), aimStart.x - aimCurrent.x);
 }
 
-function shootArrow(fromPlayer, x, y, angle, power) {
+function shootArrow(x, y, angle, power) {
   const speed = power * 0.9;
   arrows.push({
     x, y,
     vx: Math.cos(angle) * speed,
     vy: Math.sin(angle) * speed,
-    fromPlayer,
-    stuck: false,
-    life: 300
+    stuck: false
   });
+  shots++;
+  shotsEl.textContent = 'Flechas: ' + shots;
 }
 
-function enemyAI() {
-  if (gameState !== 'playing') return;
-  enemy.shootCooldown--;
-
-  if (enemy.shootCooldown <= 0 && Math.random() < 0.02) {
-    const dx = player.x - enemy.x;
-    const dy = (player.y - 40) - (enemy.y - 40);
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    let angle = Math.atan2(dy, dx);
-    angle -= 0.15 + (dist / 2000);
-    angle += (Math.random() - 0.5) * 0.25;
-
-    const power = 10 + Math.random() * 6;
-    shootArrow(false, enemy.x - 20, enemy.y - 40, angle, power);
-    enemy.shootCooldown = 80 + Math.random() * 60;
-  }
-}
-
-function checkHit(arrow) {
-  const targets = arrow.fromPlayer ? [enemy] : [player];
-  for (const t of targets) {
-    const headX = t.x;
-    const headY = t.y - 55;
-    if (Math.hypot(arrow.x - headX, arrow.y - headY) < 14) {
-      return { target: t, damage: 35, isHead: true };
-    }
-    const bodyX = t.x;
-    const bodyY = t.y - 25;
-    if (Math.hypot(arrow.x - bodyX, arrow.y - bodyY) < 18) {
-      return { target: t, damage: 18, isHead: false };
-    }
-  }
-  return null;
+function getTargetScore(dist) {
+  if (dist <= 12) return 100;      // centro
+  if (dist <= 25) return 50;       // amarelo
+  if (dist <= 40) return 25;       // branco interno
+  if (dist <= 55) return 15;       // vermelho
+  if (dist <= 70) return 10;       // branco externo
+  return 0;
 }
 
 function update() {
-  if (gameState !== 'playing') return;
-
   for (let i = arrows.length - 1; i >= 0; i--) {
     const a = arrows[i];
-    if (a.stuck) {
-      a.life--;
-      if (a.life <= 0) arrows.splice(i, 1);
-      continue;
-    }
+    if (a.stuck) continue;
 
     a.vy += gravity;
     a.x += a.vx;
     a.y += a.vy;
 
+    // Colisão com o alvo
+    const dist = Math.hypot(a.x - target.x, a.y - target.y);
+    if (dist <= target.radius + 5) {
+      a.stuck = true;
+      a.vx = 0;
+      a.vy = 0;
+
+      const points = getTargetScore(dist);
+      if (points > 0) {
+        score += points;
+        scoreEl.textContent = 'Pontos: ' + score;
+        createParticles(a.x, a.y, points >= 50 ? '#eab308' : '#ef4444');
+        
+        if (points === 100) showMessage('BULLSEYE! +100');
+        else if (points === 50) showMessage('Ótimo! +50');
+        else if (points >= 25) showMessage('+' + points);
+        else showMessage('+' + points);
+      } else {
+        showMessage('Errou!');
+      }
+
+      stuckArrows.push(a);
+      arrows.splice(i, 1);
+      continue;
+    }
+
+    // Chão
     if (a.y > groundY - 5) {
       a.y = groundY - 5;
-      a.vx *= 0.6;
+      a.vx *= 0.5;
       a.vy = 0;
       a.stuck = true;
-      a.life = 60;
-      continue;
-    }
-
-    if (a.x < -50 || a.x > 850 || a.y < -50) {
+      stuckArrows.push(a);
       arrows.splice(i, 1);
       continue;
     }
 
-    const hit = checkHit(a);
-    if (hit) {
-      if (hit.target === player) {
-        playerHP = Math.max(0, playerHP - hit.damage);
-        playerBar.style.width = playerHP + '%';
-        createParticles(a.x, a.y, '#f87171');
-        if (hit.isHead) showMessage('HEADSHOT!');
-      } else {
-        enemyHP = Math.max(0, enemyHP - hit.damage);
-        enemyBar.style.width = enemyHP + '%';
-        score += hit.isHead ? 50 : 20;
-        scoreEl.textContent = 'Pontos: ' + score;
-        createParticles(a.x, a.y, '#4ade80');
-        if (hit.isHead) showMessage('HEADSHOT! +50');
-      }
+    // Fora da tela
+    if (a.x < -50 || a.x > 850 || a.y < -80) {
       arrows.splice(i, 1);
-
-      if (playerHP <= 0) {
-        gameState = 'lost';
-        showMessage('VOCÊ PERDEU!', 99999);
-        restartBtn.style.display = 'inline-block';
-      } else if (enemyHP <= 0) {
-        gameState = 'won';
-        score += 100;
-        scoreEl.textContent = 'Pontos: ' + score;
-        showMessage('VOCÊ VENCEU! +100', 99999);
-        restartBtn.style.display = 'inline-block';
-      }
     }
   }
 
+  // Partículas
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.x += p.vx;
     p.y += p.vy;
-    p.vy += 0.1;
+    p.vy += 0.15;
     p.life--;
     if (p.life <= 0) particles.splice(i, 1);
   }
-
-  enemyAI();
 }
 
 function draw() {
@@ -418,21 +397,27 @@ function draw() {
   ctx.lineTo(canvas.width, groundY);
   ctx.stroke();
 
+  // Alvo
+  drawTarget();
+
+  // Flechas presas no alvo / chão
+  stuckArrows.forEach(drawArrow);
+
   // Linha de mira
-  if (isAiming && gameState === 'playing') {
+  if (isAiming) {
     const power = getAimPower();
     const angle = getAimAngle();
 
-    ctx.strokeStyle = 'rgba(251, 191, 36, 0.4)';
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
     ctx.lineWidth = 2;
-    ctx.setLineDash([5, 5]);
+    ctx.setLineDash([6, 6]);
     ctx.beginPath();
     let predX = player.x + 15;
     let predY = player.y - 40;
     let predVX = Math.cos(angle) * power * 0.9;
     let predVY = Math.sin(angle) * power * 0.9;
     ctx.moveTo(predX, predY);
-    for (let t = 0; t < 40; t++) {
+    for (let t = 0; t < 50; t++) {
       predX += predVX;
       predY += predVY;
       predVY += gravity;
@@ -444,22 +429,24 @@ function draw() {
 
     ctx.fillStyle = '#fbbf24';
     ctx.font = '14px sans-serif';
-    ctx.fillText('Força: ' + Math.round(power), aimCurrent.x + 10, aimCurrent.y - 10);
+    ctx.fillText('Força: ' + Math.round(power), aimCurrent.x + 12, aimCurrent.y - 10);
   }
 
-  let playerArm = 0;
-  let playerDraw = 0;
+  // Stickman
+  let armAngle = 0;
+  let bowDrawn = 0;
   if (isAiming) {
-    playerArm = getAimAngle();
-    playerDraw = Math.min(getAimPower() / 18, 1);
+    armAngle = getAimAngle();
+    bowDrawn = Math.min(getAimPower() / 18, 1);
   }
-  drawStickman(player.x, player.y, 1, true, playerArm, playerDraw);
-  drawStickman(enemy.x, enemy.y, -1, false, enemy.aimAngle, 0);
+  drawStickman(player.x, player.y, armAngle, bowDrawn);
 
+  // Flechas voando
   arrows.forEach(drawArrow);
 
+  // Partículas
   particles.forEach(p => {
-    ctx.globalAlpha = p.life / 50;
+    ctx.globalAlpha = Math.max(0, p.life / 40);
     ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
@@ -487,7 +474,6 @@ function getPos(e) {
 }
 
 canvas.addEventListener('mousedown', e => {
-  if (gameState !== 'playing') return;
   isAiming = true;
   aimStart = { x: player.x + 10, y: player.y - 40 };
   aimCurrent = getPos(e);
@@ -498,18 +484,17 @@ canvas.addEventListener('mousemove', e => {
   aimCurrent = getPos(e);
 });
 
-canvas.addEventListener('mouseup', e => {
-  if (!isAiming || gameState !== 'playing') return;
+canvas.addEventListener('mouseup', () => {
+  if (!isAiming) return;
   isAiming = false;
   const power = getAimPower();
   if (power > 2) {
-    shootArrow(true, player.x + 15, player.y - 40, getAimAngle(), power);
+    shootArrow(player.x + 15, player.y - 40, getAimAngle(), power);
   }
 });
 
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  if (gameState !== 'playing') return;
   isAiming = true;
   aimStart = { x: player.x + 10, y: player.y - 40 };
   aimCurrent = getPos(e);
@@ -523,30 +508,24 @@ canvas.addEventListener('touchmove', e => {
 
 canvas.addEventListener('touchend', e => {
   e.preventDefault();
-  if (!isAiming || gameState !== 'playing') return;
+  if (!isAiming) return;
   isAiming = false;
   const power = getAimPower();
   if (power > 2) {
-    shootArrow(true, player.x + 15, player.y - 40, getAimAngle(), power);
+    shootArrow(player.x + 15, player.y - 40, getAimAngle(), power);
   }
 }, { passive: false });
 
-function restartGame() {
-  gameState = 'playing';
-  playerHP = 100;
-  enemyHP = 100;
+function resetScore() {
   score = 0;
+  shots = 0;
+  stuckArrows = [];
   arrows = [];
-  particles = [];
-  enemy.shootCooldown = 60;
-  playerBar.style.width = '100%';
-  enemyBar.style.width = '100%';
   scoreEl.textContent = 'Pontos: 0';
-  messageEl.style.opacity = 0;
-  restartBtn.style.display = 'none';
+  shotsEl.textContent = 'Flechas: 0';
+  showMessage('Pontuação zerada!');
 }
 
-enemy.shootCooldown = 90;
 loop();
 </script>
 </body>
