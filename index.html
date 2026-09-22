@@ -1,1 +1,435 @@
 
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Granny Style - Escape</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #ddd;
+    overflow: hidden;
+    touch-action: none;
+  }
+  h1 {
+    font-size: 1.4rem;
+    margin-bottom: 6px;
+    color: #c0392b;
+    text-shadow: 0 0 10px #c0392b88;
+  }
+  #gameContainer {
+    position: relative;
+    border: 3px solid #333;
+    border-radius: 6px;
+    box-shadow: 0 0 40px rgba(150,0,0,0.3);
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    background: #111;
+  }
+  #ui {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    right: 10px;
+    display: flex;
+    justify-content: space-between;
+    pointer-events: none;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  #message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s;
+    text-shadow: 0 0 20px #000;
+    color: #fff;
+  }
+  #controls {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 13px;
+    color: #888;
+    max-width: 520px;
+  }
+  button {
+    margin: 6px;
+    padding: 8px 18px;
+    font-size: 14px;
+    background: #8b0000;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+  }
+  button:hover { background: #a00; }
+</style>
+</head>
+<body>
+  <h1>Granny - Escape da Casa</h1>
+  <div id="gameContainer">
+    <canvas id="game" width="720" height="480"></canvas>
+    <div id="ui">
+      <div>Chaves: <span id="keys">0</span>/2</div>
+      <div id="status">Esconda-se e escape!</div>
+    </div>
+    <div id="message"></div>
+  </div>
+  <div id="controls">
+    <b>Controles:</b> WASD ou Setas para andar | Espaço para se esconder (quando perto de armário)<br>
+    Evite a Granny. Pegue as 2 chaves e chegue na porta de saída.
+    <br>
+    <button onclick="restart()">Reiniciar</button>
+  </div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const keysEl = document.getElementById('keys');
+const statusEl = document.getElementById('status');
+const messageEl = document.getElementById('message');
+
+const TILE = 40;
+const COLS = 18;
+const ROWS = 12;
+
+// 0 = chão, 1 = parede, 2 = armário (esconder), 3 = chave, 4 = saída
+const map = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
+  [1,0,1,1,0,1,0,1,1,1,0,1,0,1,1,1,0,1],
+  [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1],
+  [1,0,1,0,1,1,1,1,0,1,1,1,1,1,0,1,0,1],
+  [1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+  [1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+  [1,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1],
+  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,3,1],
+  [1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+];
+
+// Posições especiais
+let keyPositions = [
+  {x: 3, y: 3, taken: false},
+  {x: 16, y: 9, taken: false}
+];
+let exitPos = {x: 16, y: 1}; // porta de saída
+
+// Jogador
+let player = {
+  x: 2 * TILE + 20,
+  y: 10 * TILE + 20,
+  size: 14,
+  speed: 2.2,
+  hidden: false,
+  keys: 0
+};
+
+// Granny
+let granny = {
+  x: 9 * TILE + 20,
+  y: 2 * TILE + 20,
+  size: 18,
+  speed: 1.6,
+  dir: 0,
+  timer: 0,
+  alert: false,
+  alertTimer: 0,
+  pathTimer: 0
+};
+
+let gameState = 'playing'; // playing, won, lost
+let keys = {};
+
+function showMessage(text, duration = 2000) {
+  messageEl.textContent = text;
+  messageEl.style.opacity = 1;
+  setTimeout(() => { messageEl.style.opacity = 0; }, duration);
+}
+
+function isWall(px, py) {
+  const col = Math.floor(px / TILE);
+  const row = Math.floor(py / TILE);
+  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return true;
+  return map[row][col] === 1;
+}
+
+function canHide(px, py) {
+  const col = Math.floor(px / TILE);
+  const row = Math.floor(py / TILE);
+  // Armários estão em algumas paredes laterais (simplificado)
+  // Vamos considerar perto de certas paredes
+  return false; // vamos usar tecla perto de armários manuais
+}
+
+function distance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function moveEntity(ent, dx, dy) {
+  const newX = ent.x + dx;
+  const newY = ent.y + dy;
+  if (!isWall(newX, ent.y)) ent.x = newX;
+  if (!isWall(ent.x, newY)) ent.y = newY;
+}
+
+// Controles
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === ' ' || e.key === 'Spacebar') {
+    // Tentar se esconder
+    if (distance(player, {x: 4*TILE, y: 5*TILE}) < 40 ||
+        distance(player, {x: 13*TILE, y: 7*TILE}) < 40) {
+      player.hidden = !player.hidden;
+      statusEl.textContent = player.hidden ? 'Escondido...' : 'Correndo!';
+    }
+  }
+});
+window.addEventListener('keyup', e => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+function updatePlayer() {
+  if (gameState !== 'playing' || player.hidden) return;
+
+  let dx = 0, dy = 0;
+  if (keys['w'] || keys['arrowup']) dy = -player.speed;
+  if (keys['s'] || keys['arrowdown']) dy = player.speed;
+  if (keys['a'] || keys['arrowleft']) dx = -player.speed;
+  if (keys['d'] || keys['arrowright']) dx = player.speed;
+
+  // Normaliza diagonal
+  if (dx !== 0 && dy !== 0) {
+    dx *= 0.707;
+    dy *= 0.707;
+  }
+
+  moveEntity(player, dx, dy);
+
+  // Pegar chaves
+  keyPositions.forEach(k => {
+    if (!k.taken && distance(player, {x: k.x*TILE+20, y: k.y*TILE+20}) < 25) {
+      k.taken = true;
+      player.keys++;
+      keysEl.textContent = player.keys;
+      showMessage('Chave encontrada!');
+    }
+  });
+
+  // Checar saída
+  if (player.keys >= 2 &&
+      distance(player, {x: exitPos.x*TILE+20, y: exitPos.y*TILE+20}) < 30) {
+    gameState = 'won';
+    showMessage('VOCÊ ESCAPOU!', 99999);
+  }
+}
+
+function updateGranny() {
+  if (gameState !== 'playing') return;
+
+  granny.timer++;
+  granny.pathTimer++;
+
+  // Se o jogador está escondido, Granny fica menos alerta
+  if (player.hidden) {
+    granny.alert = false;
+    granny.alertTimer = 0;
+  } else {
+    // Detecta o jogador se estiver perto
+    const dist = distance(granny, player);
+    if (dist < 110) {
+      granny.alert = true;
+      granny.alertTimer = 120;
+    }
+  }
+
+  if (granny.alertTimer > 0) {
+    granny.alertTimer--;
+    if (granny.alertTimer <= 0) granny.alert = false;
+  }
+
+  // Movimento da Granny
+  if (granny.alert && !player.hidden) {
+    // Persegue o jogador
+    const dx = player.x - granny.x;
+    const dy = player.y - granny.y;
+    const len = Math.hypot(dx, dy) || 1;
+    moveEntity(granny, (dx/len) * granny.speed * 1.3, (dy/len) * granny.speed * 1.3);
+  } else {
+    // Patrulha simples
+    if (granny.pathTimer > 60) {
+      granny.dir = Math.floor(Math.random() * 4);
+      granny.pathTimer = 0;
+    }
+    const spd = granny.speed * 0.7;
+    if (granny.dir === 0) moveEntity(granny, 0, -spd);
+    if (granny.dir === 1) moveEntity(granny, 0, spd);
+    if (granny.dir === 2) moveEntity(granny, -spd, 0);
+    if (granny.dir === 3) moveEntity(granny, spd, 0);
+  }
+
+  // Pegou o jogador?
+  if (!player.hidden && distance(granny, player) < 22) {
+    gameState = 'lost';
+    showMessage('GRANNY TE PEGOU!', 99999);
+  }
+}
+
+function drawMap() {
+  for (let y = 0; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const tile = map[y][x];
+      const px = x * TILE;
+      const py = y * TILE;
+
+      if (tile === 1) {
+        // Parede
+        ctx.fillStyle = '#2c2c2c';
+        ctx.fillRect(px, py, TILE, TILE);
+        ctx.strokeStyle = '#1a1a1a';
+        ctx.strokeRect(px, py, TILE, TILE);
+      } else {
+        // Chão
+        ctx.fillStyle = (x + y) % 2 === 0 ? '#1e1e1e' : '#222';
+        ctx.fillRect(px, py, TILE, TILE);
+      }
+    }
+  }
+
+  // Desenhar chaves
+  keyPositions.forEach(k => {
+    if (!k.taken) {
+      ctx.fillStyle = '#f1c40f';
+      ctx.beginPath();
+      ctx.arc(k.x * TILE + 20, k.y * TILE + 20, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#e67e22';
+      ctx.fillRect(k.x * TILE + 18, k.y * TILE + 12, 4, 10);
+    }
+  });
+
+  // Porta de saída
+  ctx.fillStyle = player.keys >= 2 ? '#27ae60' : '#7f8c8d';
+  ctx.fillRect(exitPos.x * TILE + 5, exitPos.y * TILE + 5, TILE - 10, TILE - 10);
+  ctx.fillStyle = '#fff';
+  ctx.font = '10px Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('SAÍDA', exitPos.x * TILE + 20, exitPos.y * TILE + 24);
+}
+
+function drawPlayer() {
+  if (player.hidden) {
+    // Quase invisível quando escondido
+    ctx.globalAlpha = 0.3;
+  }
+
+  ctx.fillStyle = '#3498db';
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Olhos
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(player.x - 4, player.y - 3, 3, 0, Math.PI * 2);
+  ctx.arc(player.x + 4, player.y - 3, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.globalAlpha = 1;
+}
+
+function drawGranny() {
+  // Corpo
+  ctx.fillStyle = granny.alert ? '#c0392b' : '#8e44ad';
+  ctx.beginPath();
+  ctx.arc(granny.x, granny.y, granny.size, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Cabeça / cabelo
+  ctx.fillStyle = '#d5d5d5';
+  ctx.beginPath();
+  ctx.arc(granny.x, granny.y - 8, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Olhos
+  ctx.fillStyle = granny.alert ? '#ff0' : '#111';
+  ctx.beginPath();
+  ctx.arc(granny.x - 5, granny.y - 9, 3, 0, Math.PI * 2);
+  ctx.arc(granny.x + 5, granny.y - 9, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Indicador de alerta
+  if (granny.alert) {
+    ctx.fillStyle = '#e74c3c';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', granny.x, granny.y - 28);
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawMap();
+  drawPlayer();
+  drawGranny();
+
+  // Escuridão / vinheta simples
+  const gradient = ctx.createRadialGradient(
+    player.x, player.y, 60,
+    player.x, player.y, 280
+  );
+  gradient.addColorStop(0, 'rgba(0,0,0,0)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0.75)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function loop() {
+  if (gameState === 'playing') {
+    updatePlayer();
+    updateGranny();
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function restart() {
+  player.x = 2 * TILE + 20;
+  player.y = 10 * TILE + 20;
+  player.keys = 0;
+  player.hidden = false;
+  keysEl.textContent = '0';
+  keyPositions.forEach(k => k.taken = false);
+  granny.x = 9 * TILE + 20;
+  granny.y = 2 * TILE + 20;
+  granny.alert = false;
+  gameState = 'playing';
+  messageEl.style.opacity = 0;
+  statusEl.textContent = 'Esconda-se e escape!';
+  showMessage('Sobreviva e escape!');
+}
+
+// Inicia
+showMessage('Fuja da Granny!', 2500);
+loop();
+</script>
+</body>
+</html>
