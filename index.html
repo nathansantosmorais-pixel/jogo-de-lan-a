@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Moto Rampas Realistas</title>
+<title>Moto Rampas</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -90,7 +90,7 @@
   </div>
   <div id="controls">
     <b>Controles:</b> ← → ou A D para inclinar | ↑ ou W para acelerar | ↓ ou S para frear<br>
-    Rampas mais realistas agora!
+    Só cai se aterrissar <b>de ponta-cabeça</b>!
     <br>
     <button onclick="restart()">Reiniciar</button>
   </div>
@@ -122,13 +122,11 @@ let ground = [];
 let distance = 0;
 let gameOver = false;
 
-// ===================== GERAÇÃO DE RAMPAS REALISTAS =====================
 function generateTerrain() {
   ground = [];
   let x = 0;
   let y = 310;
 
-  // Chão inicial plano
   for (let i = 0; i < 25; i++) {
     ground.push({ x, y });
     x += 30;
@@ -138,26 +136,22 @@ function generateTerrain() {
     const type = Math.random();
 
     if (type < 0.40) {
-      // ===== RAMPA SUAVE (subida + descida) =====
       const height = 50 + Math.random() * 55;
       const upLen = 90 + Math.random() * 50;
       const downLen = 100 + Math.random() * 60;
 
-      // Subida curva (ease-in / ease-out)
       for (let t = 0; t <= 1; t += 0.04) {
-        const ease = t * t * (3 - 2 * t); // smoothstep
+        const ease = t * t * (3 - 2 * t);
         ground.push({ x, y: y - height * ease });
         x += upLen * 0.04;
       }
       y -= height;
 
-      // Topo pequeno plano
       for (let j = 0; j < 3; j++) {
         ground.push({ x, y });
         x += 18;
       }
 
-      // Descida curva
       for (let t = 0; t <= 1; t += 0.04) {
         const ease = t * t * (3 - 2 * t);
         ground.push({ x, y: y + height * ease });
@@ -166,29 +160,24 @@ function generateTerrain() {
       y += height;
 
     } else if (type < 0.65) {
-      // ===== RAMPA DE SALTO (kicker) =====
       const height = 70 + Math.random() * 50;
       const rampLen = 110 + Math.random() * 40;
 
-      // Subida acelerada (mais íngreme no final)
       for (let t = 0; t <= 1; t += 0.035) {
-        const ease = Math.pow(t, 1.6); // mais agressiva
+        const ease = Math.pow(t, 1.6);
         ground.push({ x, y: y - height * ease });
         x += rampLen * 0.035;
       }
       y -= height;
 
-      // Lip (beirada do salto)
       for (let j = 0; j < 2; j++) {
         ground.push({ x, y });
         x += 12;
       }
 
-      // Vão (ar)
       const gap = 100 + Math.random() * 90;
       x += gap;
 
-      // Aterrissagem inclinada
       const landHeight = height * 0.55;
       for (let t = 0; t <= 1; t += 0.05) {
         const ease = t * t;
@@ -198,18 +187,14 @@ function generateTerrain() {
       y += landHeight;
 
     } else if (type < 0.80) {
-      // ===== ONDULAÇÃO / WHOOPS =====
       for (let j = 0; j < 6; j++) {
         const h = 18 + Math.random() * 22;
-        // sobe
         for (let t = 0; t <= 1; t += 0.1) {
           ground.push({ x, y: y - h * Math.sin(t * Math.PI) });
           x += 14;
         }
       }
-
     } else {
-      // ===== TRECHO PLANO / LEVE ONDULAÇÃO =====
       for (let j = 0; j < 10; j++) {
         y += (Math.random() - 0.5) * 12;
         y = Math.max(250, Math.min(340, y));
@@ -219,7 +204,6 @@ function generateTerrain() {
     }
   }
 
-  // Final plano
   for (let i = 0; i < 20; i++) {
     ground.push({ x, y: 310 });
     x += 35;
@@ -230,7 +214,6 @@ function getGroundY(atX) {
   for (let i = 0; i < ground.length - 1; i++) {
     if (atX >= ground[i].x && atX <= ground[i + 1].x) {
       const t = (atX - ground[i].x) / (ground[i + 1].x - ground[i].x || 1);
-      // interpolação suave
       const smoothT = t * t * (3 - 2 * t);
       return ground[i].y + smoothT * (ground[i + 1].y - ground[i].y);
     }
@@ -269,7 +252,7 @@ function restart() {
   gameOver = false;
   messageEl.style.opacity = 0;
   generateTerrain();
-  showMessage('Rampas realistas ativadas!', 2000);
+  showMessage('Só cai de ponta-cabeça!', 2000);
 }
 
 function update() {
@@ -299,6 +282,10 @@ function update() {
   bike.y += bike.vy;
   bike.angle += bike.angularVel;
 
+  // Normaliza o ângulo entre -PI e PI
+  while (bike.angle > Math.PI) bike.angle -= Math.PI * 2;
+  while (bike.angle < -Math.PI) bike.angle += Math.PI * 2;
+
   if (!bike.onGround) {
     bike.vy += 0.42;
   }
@@ -307,19 +294,23 @@ function update() {
   const groundAngle = getGroundAngle(bike.x);
 
   if (bike.y + 17 > groundY) {
-    // Queda forte ou ângulo ruim = crash
-    if (bike.vy > 9.5 || Math.abs(bike.angle - groundAngle) > 1.15) {
+    // ===== SÓ CAI SE ESTIVER DE PONTA-CABEÇA =====
+    // Considera ponta-cabeça quando o ângulo está perto de ±180° (π radianos)
+    const upsideDown = Math.abs(bike.angle) > 2.0;  // mais de ~115°
+
+    if (upsideDown) {
       bike.crashed = true;
       gameOver = true;
-      showMessage('CAIU! 💥', 99999);
+      showMessage('PONTA-CABEÇA! 💥', 99999);
       return;
     }
 
+    // Aterrissagem normal
     bike.y = groundY - 17;
-    bike.vy *= 0.15; // pequeno bounce
+    bike.vy *= 0.15;
     bike.onGround = true;
 
-    // Alinha suavemente com o terreno
+    // Alinha com o terreno
     bike.angle += (groundAngle - bike.angle) * 0.28;
     bike.angularVel *= 0.65;
 
@@ -349,21 +340,17 @@ function drawBike() {
   ctx.translate(bike.x - cameraX, bike.y);
   ctx.rotate(bike.angle);
 
-  // Sombra
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
   ctx.ellipse(0, 20, 28, 6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Corpo
   ctx.fillStyle = '#ef4444';
   ctx.fillRect(-26, -7, 52, 13);
 
-  // Banco
   ctx.fillStyle = '#1e293b';
   ctx.fillRect(-8, -13, 26, 7);
 
-  // Guidão
   ctx.strokeStyle = '#94a3b8';
   ctx.lineWidth = 3;
   ctx.beginPath();
@@ -372,7 +359,6 @@ function drawBike() {
   ctx.lineTo(30, -15);
   ctx.stroke();
 
-  // Rodas
   ctx.fillStyle = '#0f172a';
   ctx.beginPath();
   ctx.arc(-20, 11, 11, 0, Math.PI * 2);
@@ -388,7 +374,6 @@ function drawBike() {
   ctx.moveTo(11, 11); ctx.lineTo(29, 11);
   ctx.stroke();
 
-  // Piloto
   ctx.fillStyle = '#fbbf24';
   ctx.beginPath();
   ctx.arc(4, -20, 8, 0, Math.PI * 2);
@@ -410,10 +395,8 @@ function drawBike() {
 }
 
 function draw() {
-  // Limpa
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Céu
   const sky = ctx.createLinearGradient(0, 0, 0, 400);
   sky.addColorStop(0, '#0ea5e9');
   sky.addColorStop(0.42, '#38bdf8');
@@ -422,7 +405,6 @@ function draw() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Montanhas
   ctx.fillStyle = '#64748b';
   for (let i = 0; i < 8; i++) {
     const mx = ((i * 200) - cameraX * 0.25) % 900 - 100;
@@ -433,11 +415,9 @@ function draw() {
     ctx.fill();
   }
 
-  // Terreno com preenchimento
   ctx.fillStyle = '#334155';
   ctx.beginPath();
   ctx.moveTo(-20, 400);
-
   for (let i = 0; i < ground.length; i++) {
     const gx = ground[i].x - cameraX;
     if (gx > -60 && gx < 860) {
@@ -448,7 +428,6 @@ function draw() {
   ctx.closePath();
   ctx.fill();
 
-  // Linha superior do terreno (mais definida)
   ctx.strokeStyle = '#475569';
   ctx.lineWidth = 4;
   ctx.beginPath();
@@ -466,7 +445,6 @@ function draw() {
   }
   ctx.stroke();
 
-  // Moto
   if (!bike.crashed) {
     drawBike();
   } else {
@@ -486,7 +464,7 @@ function loop() {
 }
 
 generateTerrain();
-showMessage('Rampas realistas! Acelere e voe!', 2500);
+showMessage('Só cai de ponta-cabeça! Gire no ar!', 2500);
 loop();
 </script>
 </body>
