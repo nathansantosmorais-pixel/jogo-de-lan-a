@@ -1,55 +1,55 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Granny Style - Escape</title>
+<title>Moto Rampas</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #0a0a0a;
+    background: #0f172a;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     min-height: 100vh;
     font-family: 'Segoe UI', system-ui, sans-serif;
-    color: #ddd;
+    color: #e2e8f0;
     overflow: hidden;
     touch-action: none;
   }
   h1 {
-    font-size: 1.4rem;
-    margin-bottom: 6px;
-    color: #c0392b;
-    text-shadow: 0 0 10px #c0392b88;
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+    color: #38bdf8;
+    text-shadow: 0 0 12px #38bdf888;
   }
   #gameContainer {
     position: relative;
-    border: 3px solid #333;
-    border-radius: 6px;
-    box-shadow: 0 0 40px rgba(150,0,0,0.3);
+    border: 3px solid #38bdf8;
+    border-radius: 10px;
+    box-shadow: 0 0 40px rgba(56,189,248,0.3);
     overflow: hidden;
   }
   canvas {
     display: block;
-    background: #111;
+    background: linear-gradient(to bottom, #0ea5e9 0%, #38bdf8 40%, #94a3b8 40%, #64748b 100%);
   }
   #ui {
     position: absolute;
-    top: 8px;
-    left: 10px;
-    right: 10px;
+    top: 10px;
+    left: 12px;
+    right: 12px;
     display: flex;
     justify-content: space-between;
     pointer-events: none;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: bold;
+    text-shadow: 0 1px 3px #000;
   }
   #message {
     position: absolute;
-    top: 50%;
+    top: 45%;
     left: 50%;
     transform: translate(-50%, -50%);
     font-size: 28px;
@@ -59,42 +59,41 @@
     opacity: 0;
     transition: opacity 0.3s;
     text-shadow: 0 0 20px #000;
-    color: #fff;
   }
   #controls {
-    margin-top: 10px;
+    margin-top: 12px;
     text-align: center;
-    font-size: 13px;
-    color: #888;
+    font-size: 14px;
+    color: #94a3b8;
     max-width: 520px;
   }
   button {
-    margin: 6px;
-    padding: 8px 18px;
-    font-size: 14px;
-    background: #8b0000;
+    margin: 8px 6px;
+    padding: 10px 22px;
+    font-size: 15px;
+    background: #0ea5e9;
     color: white;
     border: none;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
     font-weight: bold;
   }
-  button:hover { background: #a00; }
+  button:hover { background: #38bdf8; }
 </style>
 </head>
 <body>
-  <h1>Granny - Escape da Casa</h1>
+  <h1>🏍 Moto Rampas</h1>
   <div id="gameContainer">
-    <canvas id="game" width="720" height="480"></canvas>
+    <canvas id="game" width="800" height="400"></canvas>
     <div id="ui">
-      <div>Chaves: <span id="keys">0</span>/2</div>
-      <div id="status">Esconda-se e escape!</div>
+      <div>Distância: <span id="dist">0</span>m</div>
+      <div>Velocidade: <span id="speed">0</span> km/h</div>
     </div>
     <div id="message"></div>
   </div>
   <div id="controls">
-    <b>Controles:</b> WASD ou Setas para andar | Espaço para se esconder (quando perto de armário)<br>
-    Evite a Granny. Pegue as 2 chaves e chegue na porta de saída.
+    <b>Controles:</b> ← → ou A D para inclinar | ↑ ou W para acelerar | ↓ ou S para frear<br>
+    Passe nas rampas e faça manobras no ar!
     <br>
     <button onclick="restart()">Reiniciar</button>
   </div>
@@ -102,333 +101,365 @@
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-const keysEl = document.getElementById('keys');
-const statusEl = document.getElementById('status');
+const distEl = document.getElementById('dist');
+const speedEl = document.getElementById('speed');
 const messageEl = document.getElementById('message');
 
-const TILE = 40;
-const COLS = 18;
-const ROWS = 12;
-
-// 0 = chão, 1 = parede, 2 = armário (esconder), 3 = chave, 4 = saída
-const map = [
-  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
-  [1,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,1],
-  [1,0,1,1,0,1,0,1,1,1,0,1,0,1,1,1,0,1],
-  [1,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1],
-  [1,0,1,0,1,1,1,1,0,1,1,1,1,1,0,1,0,1],
-  [1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
-  [1,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
-  [1,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,0,1],
-  [1,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,3,1],
-  [1,0,1,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1],
-  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
-];
-
-// Posições especiais
-let keyPositions = [
-  {x: 3, y: 3, taken: false},
-  {x: 16, y: 9, taken: false}
-];
-let exitPos = {x: 16, y: 1}; // porta de saída
-
-// Jogador
-let player = {
-  x: 2 * TILE + 20,
-  y: 10 * TILE + 20,
-  size: 14,
-  speed: 2.2,
-  hidden: false,
-  keys: 0
-};
-
-// Granny
-let granny = {
-  x: 9 * TILE + 20,
-  y: 2 * TILE + 20,
-  size: 18,
-  speed: 1.6,
-  dir: 0,
-  timer: 0,
-  alert: false,
-  alertTimer: 0,
-  pathTimer: 0
-};
-
-let gameState = 'playing'; // playing, won, lost
 let keys = {};
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-function showMessage(text, duration = 2000) {
-  messageEl.textContent = text;
-  messageEl.style.opacity = 1;
-  setTimeout(() => { messageEl.style.opacity = 0; }, duration);
-}
+// Moto
+let bike = {
+  x: 150,
+  y: 280,
+  vx: 0,
+  vy: 0,
+  angle: 0,          // rotação em radianos
+  angularVel: 0,
+  onGround: true,
+  wheelBase: 50,
+  crashed: false
+};
 
-function isWall(px, py) {
-  const col = Math.floor(px / TILE);
-  const row = Math.floor(py / TILE);
-  if (col < 0 || col >= COLS || row < 0 || row >= ROWS) return true;
-  return map[row][col] === 1;
-}
+// Câmera
+let cameraX = 0;
 
-function canHide(px, py) {
-  const col = Math.floor(px / TILE);
-  const row = Math.floor(py / TILE);
-  // Armários estão em algumas paredes laterais (simplificado)
-  // Vamos considerar perto de certas paredes
-  return false; // vamos usar tecla perto de armários manuais
-}
+// Chão e rampas
+let ground = [];
+let distance = 0;
+let gameOver = false;
 
-function distance(a, b) {
-  return Math.hypot(a.x - b.x, a.y - b.y);
-}
+// Gera o terreno com rampas
+function generateTerrain() {
+  ground = [];
+  let x = 0;
+  let y = 320;
 
-function moveEntity(ent, dx, dy) {
-  const newX = ent.x + dx;
-  const newY = ent.y + dy;
-  if (!isWall(newX, ent.y)) ent.x = newX;
-  if (!isWall(ent.x, newY)) ent.y = newY;
-}
-
-// Controles
-window.addEventListener('keydown', e => {
-  keys[e.key.toLowerCase()] = true;
-  if (e.key === ' ' || e.key === 'Spacebar') {
-    // Tentar se esconder
-    if (distance(player, {x: 4*TILE, y: 5*TILE}) < 40 ||
-        distance(player, {x: 13*TILE, y: 7*TILE}) < 40) {
-      player.hidden = !player.hidden;
-      statusEl.textContent = player.hidden ? 'Escondido...' : 'Correndo!';
-    }
-  }
-});
-window.addEventListener('keyup', e => {
-  keys[e.key.toLowerCase()] = false;
-});
-
-function updatePlayer() {
-  if (gameState !== 'playing' || player.hidden) return;
-
-  let dx = 0, dy = 0;
-  if (keys['w'] || keys['arrowup']) dy = -player.speed;
-  if (keys['s'] || keys['arrowdown']) dy = player.speed;
-  if (keys['a'] || keys['arrowleft']) dx = -player.speed;
-  if (keys['d'] || keys['arrowright']) dx = player.speed;
-
-  // Normaliza diagonal
-  if (dx !== 0 && dy !== 0) {
-    dx *= 0.707;
-    dy *= 0.707;
+  // Chão inicial plano
+  for (let i = 0; i < 20; i++) {
+    ground.push({ x: x, y: y });
+    x += 40;
   }
 
-  moveEntity(player, dx, dy);
+  // Várias rampas e obstáculos
+  for (let i = 0; i < 40; i++) {
+    const type = Math.random();
 
-  // Pegar chaves
-  keyPositions.forEach(k => {
-    if (!k.taken && distance(player, {x: k.x*TILE+20, y: k.y*TILE+20}) < 25) {
-      k.taken = true;
-      player.keys++;
-      keysEl.textContent = player.keys;
-      showMessage('Chave encontrada!');
-    }
-  });
-
-  // Checar saída
-  if (player.keys >= 2 &&
-      distance(player, {x: exitPos.x*TILE+20, y: exitPos.y*TILE+20}) < 30) {
-    gameState = 'won';
-    showMessage('VOCÊ ESCAPOU!', 99999);
-  }
-}
-
-function updateGranny() {
-  if (gameState !== 'playing') return;
-
-  granny.timer++;
-  granny.pathTimer++;
-
-  // Se o jogador está escondido, Granny fica menos alerta
-  if (player.hidden) {
-    granny.alert = false;
-    granny.alertTimer = 0;
-  } else {
-    // Detecta o jogador se estiver perto
-    const dist = distance(granny, player);
-    if (dist < 110) {
-      granny.alert = true;
-      granny.alertTimer = 120;
-    }
-  }
-
-  if (granny.alertTimer > 0) {
-    granny.alertTimer--;
-    if (granny.alertTimer <= 0) granny.alert = false;
-  }
-
-  // Movimento da Granny
-  if (granny.alert && !player.hidden) {
-    // Persegue o jogador
-    const dx = player.x - granny.x;
-    const dy = player.y - granny.y;
-    const len = Math.hypot(dx, dy) || 1;
-    moveEntity(granny, (dx/len) * granny.speed * 1.3, (dy/len) * granny.speed * 1.3);
-  } else {
-    // Patrulha simples
-    if (granny.pathTimer > 60) {
-      granny.dir = Math.floor(Math.random() * 4);
-      granny.pathTimer = 0;
-    }
-    const spd = granny.speed * 0.7;
-    if (granny.dir === 0) moveEntity(granny, 0, -spd);
-    if (granny.dir === 1) moveEntity(granny, 0, spd);
-    if (granny.dir === 2) moveEntity(granny, -spd, 0);
-    if (granny.dir === 3) moveEntity(granny, spd, 0);
-  }
-
-  // Pegou o jogador?
-  if (!player.hidden && distance(granny, player) < 22) {
-    gameState = 'lost';
-    showMessage('GRANNY TE PEGOU!', 99999);
-  }
-}
-
-function drawMap() {
-  for (let y = 0; y < ROWS; y++) {
-    for (let x = 0; x < COLS; x++) {
-      const tile = map[y][x];
-      const px = x * TILE;
-      const py = y * TILE;
-
-      if (tile === 1) {
-        // Parede
-        ctx.fillStyle = '#2c2c2c';
-        ctx.fillRect(px, py, TILE, TILE);
-        ctx.strokeStyle = '#1a1a1a';
-        ctx.strokeRect(px, py, TILE, TILE);
-      } else {
-        // Chão
-        ctx.fillStyle = (x + y) % 2 === 0 ? '#1e1e1e' : '#222';
-        ctx.fillRect(px, py, TILE, TILE);
+    if (type < 0.35) {
+      // Rampa para cima
+      const height = 40 + Math.random() * 70;
+      const length = 80 + Math.random() * 60;
+      for (let j = 0; j < length / 20; j++) {
+        y -= height / (length / 20);
+        ground.push({ x: x, y: y });
+        x += 20;
+      }
+      // Descida
+      for (let j = 0; j < length / 20; j++) {
+        y += height / (length / 20);
+        ground.push({ x: x, y: y });
+        x += 20;
+      }
+    } else if (type < 0.55) {
+      // Rampa grande (salto)
+      const height = 80 + Math.random() * 60;
+      for (let j = 0; j < 6; j++) {
+        y -= height / 6;
+        ground.push({ x: x, y: y });
+        x += 25;
+      }
+      // Espaço no ar (vazio)
+      x += 120 + Math.random() * 80;
+      y += height * 0.3;
+      for (let j = 0; j < 8; j++) {
+        ground.push({ x: x, y: y });
+        x += 20;
+        y += 4;
+      }
+    } else {
+      // Chão plano ondulado
+      for (let j = 0; j < 8; j++) {
+        y += (Math.random() - 0.5) * 15;
+        y = Math.max(260, Math.min(350, y));
+        ground.push({ x: x, y: y });
+        x += 30;
       }
     }
   }
 
-  // Desenhar chaves
-  keyPositions.forEach(k => {
-    if (!k.taken) {
-      ctx.fillStyle = '#f1c40f';
-      ctx.beginPath();
-      ctx.arc(k.x * TILE + 20, k.y * TILE + 20, 8, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#e67e22';
-      ctx.fillRect(k.x * TILE + 18, k.y * TILE + 12, 4, 10);
+  // Final
+  for (let i = 0; i < 15; i++) {
+    ground.push({ x: x, y: 320 });
+    x += 40;
+  }
+}
+
+function getGroundY(atX) {
+  // Encontra a altura do chão na posição x
+  for (let i = 0; i < ground.length - 1; i++) {
+    if (atX >= ground[i].x && atX <= ground[i + 1].x) {
+      const t = (atX - ground[i].x) / (ground[i + 1].x - ground[i].x);
+      return ground[i].y + t * (ground[i + 1].y - ground[i].y);
     }
-  });
-
-  // Porta de saída
-  ctx.fillStyle = player.keys >= 2 ? '#27ae60' : '#7f8c8d';
-  ctx.fillRect(exitPos.x * TILE + 5, exitPos.y * TILE + 5, TILE - 10, TILE - 10);
-  ctx.fillStyle = '#fff';
-  ctx.font = '10px Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('SAÍDA', exitPos.x * TILE + 20, exitPos.y * TILE + 24);
+  }
+  return 400;
 }
 
-function drawPlayer() {
-  if (player.hidden) {
-    // Quase invisível quando escondido
-    ctx.globalAlpha = 0.3;
+function getGroundAngle(atX) {
+  for (let i = 0; i < ground.length - 1; i++) {
+    if (atX >= ground[i].x && atX <= ground[i + 1].x) {
+      const dx = ground[i + 1].x - ground[i].x;
+      const dy = ground[i + 1].y - ground[i].y;
+      return Math.atan2(dy, dx);
+    }
   }
-
-  ctx.fillStyle = '#3498db';
-  ctx.beginPath();
-  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Olhos
-  ctx.fillStyle = '#fff';
-  ctx.beginPath();
-  ctx.arc(player.x - 4, player.y - 3, 3, 0, Math.PI * 2);
-  ctx.arc(player.x + 4, player.y - 3, 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.globalAlpha = 1;
+  return 0;
 }
 
-function drawGranny() {
-  // Corpo
-  ctx.fillStyle = granny.alert ? '#c0392b' : '#8e44ad';
-  ctx.beginPath();
-  ctx.arc(granny.x, granny.y, granny.size, 0, Math.PI * 2);
-  ctx.fill();
+function showMessage(text, duration = 2000) {
+  messageEl.textContent = text;
+  messageEl.style.opacity = 1;
+  setTimeout(() => { if (!gameOver) messageEl.style.opacity = 0; }, duration);
+}
 
-  // Cabeça / cabelo
-  ctx.fillStyle = '#d5d5d5';
-  ctx.beginPath();
-  ctx.arc(granny.x, granny.y - 8, 12, 0, Math.PI * 2);
-  ctx.fill();
+function restart() {
+  bike.x = 150;
+  bike.y = 280;
+  bike.vx = 0;
+  bike.vy = 0;
+  bike.angle = 0;
+  bike.angularVel = 0;
+  bike.onGround = true;
+  bike.crashed = false;
+  cameraX = 0;
+  distance = 0;
+  gameOver = false;
+  messageEl.style.opacity = 0;
+  generateTerrain();
+  showMessage('Acelere e pegue as rampas!', 2000);
+}
 
-  // Olhos
-  ctx.fillStyle = granny.alert ? '#ff0' : '#111';
-  ctx.beginPath();
-  ctx.arc(granny.x - 5, granny.y - 9, 3, 0, Math.PI * 2);
-  ctx.arc(granny.x + 5, granny.y - 9, 3, 0, Math.PI * 2);
-  ctx.fill();
+function update() {
+  if (gameOver) return;
 
-  // Indicador de alerta
-  if (granny.alert) {
-    ctx.fillStyle = '#e74c3c';
-    ctx.font = 'bold 16px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('!', granny.x, granny.y - 28);
+  // Controles
+  const accel = keys['arrowup'] || keys['w'];
+  const brake = keys['arrowdown'] || keys['s'];
+  const left  = keys['arrowleft'] || keys['a'];
+  const right = keys['arrowright'] || keys['d'];
+
+  if (bike.onGround) {
+    if (accel) bike.vx += 0.35;
+    if (brake) bike.vx *= 0.92;
+    bike.vx *= 0.985; // atrito
+
+    // Inclinar no chão
+    if (left)  bike.angularVel -= 0.004;
+    if (right) bike.angularVel += 0.004;
+  } else {
+    // No ar - controle de rotação (manobra)
+    if (left)  bike.angularVel -= 0.006;
+    if (right) bike.angularVel += 0.006;
+    bike.angularVel *= 0.98;
   }
+
+  // Limite de velocidade
+  bike.vx = Math.max(-3, Math.min(14, bike.vx));
+
+  // Física
+  bike.x += bike.vx;
+  bike.y += bike.vy;
+  bike.angle += bike.angularVel;
+
+  // Gravidade
+  if (!bike.onGround) {
+    bike.vy += 0.45;
+  }
+
+  // Colisão com o chão
+  const groundY = getGroundY(bike.x);
+  const groundAngle = getGroundAngle(bike.x);
+
+  if (bike.y + 18 > groundY) {
+    // Tocou o chão
+    if (bike.vy > 8 || Math.abs(bike.angle - groundAngle) > 1.1) {
+      // Queda feia → crash
+      bike.crashed = true;
+      gameOver = true;
+      showMessage('CAIU! 💥', 99999);
+      return;
+    }
+
+    bike.y = groundY - 18;
+    bike.vy = 0;
+    bike.onGround = true;
+
+    // Alinha a moto com o chão
+    bike.angle += (groundAngle - bike.angle) * 0.25;
+    bike.angularVel *= 0.7;
+
+    // Pequeno boost em rampas
+    if (groundAngle < -0.3 && bike.vx > 4) {
+      bike.vy = groundAngle * bike.vx * 0.8;
+      bike.onGround = false;
+    }
+  } else {
+    bike.onGround = false;
+  }
+
+  // Câmera segue a moto
+  cameraX = bike.x - 200;
+
+  // Distância
+  distance = Math.max(0, Math.floor((bike.x - 150) / 10));
+  distEl.textContent = distance;
+  speedEl.textContent = Math.floor(Math.abs(bike.vx) * 12);
+
+  // Caiu do mapa
+  if (bike.y > 500) {
+    gameOver = true;
+    showMessage('CAIU NO ABISMO! 😱', 99999);
+  }
+}
+
+function drawBike() {
+  ctx.save();
+  ctx.translate(bike.x - cameraX, bike.y);
+  ctx.rotate(bike.angle);
+
+  // Sombra
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(0, 22, 30, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Corpo da moto
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(-28, -8, 56, 14);
+
+  // Banco
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(-10, -14, 28, 8);
+
+  // Guidão
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(18, -8);
+  ctx.lineTo(26, -18);
+  ctx.lineTo(32, -16);
+  ctx.stroke();
+
+  // Rodas
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(-22, 12, 12, 0, Math.PI * 2);
+  ctx.arc(22, 12, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Raios das rodas
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-22, 2); ctx.lineTo(-22, 22);
+  ctx.moveTo(-32, 12); ctx.lineTo(-12, 12);
+  ctx.moveTo(22, 2); ctx.lineTo(22, 22);
+  ctx.moveTo(12, 12); ctx.lineTo(32, 12);
+  ctx.stroke();
+
+  // Piloto
+  ctx.fillStyle = '#fbbf24';
+  ctx.beginPath();
+  ctx.arc(5, -22, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Capacete
+  ctx.fillStyle = '#3b82f6';
+  ctx.beginPath();
+  ctx.arc(5, -24, 8, Math.PI, Math.PI * 2);
+  ctx.fill();
+
+  // Corpo do piloto
+  ctx.strokeStyle = '#1e40af';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(5, -14);
+  ctx.lineTo(0, 0);
+  ctx.stroke();
+
+  ctx.restore();
 }
 
 function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawMap();
-  drawPlayer();
-  drawGranny();
+  // Céu já está no background do canvas
 
-  // Escuridão / vinheta simples
-  const gradient = ctx.createRadialGradient(
-    player.x, player.y, 60,
-    player.x, player.y, 280
-  );
-  gradient.addColorStop(0, 'rgba(0,0,0,0)');
-  gradient.addColorStop(1, 'rgba(0,0,0,0.75)');
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // Montanhas de fundo
+  ctx.fillStyle = '#64748b';
+  for (let i = 0; i < 8; i++) {
+    const mx = ((i * 200) - cameraX * 0.3) % 900 - 100;
+    ctx.beginPath();
+    ctx.moveTo(mx, 200);
+    ctx.lineTo(mx + 100, 80 + (i % 3) * 30);
+    ctx.lineTo(mx + 200, 200);
+    ctx.fill();
+  }
+
+  // Chão / terreno
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.moveTo(0, 400);
+  for (let i = 0; i < ground.length; i++) {
+    const gx = ground[i].x - cameraX;
+    if (gx > -50 && gx < 850) {
+      ctx.lineTo(gx, ground[i].y);
+    }
+  }
+  ctx.lineTo(800, 400);
+  ctx.closePath();
+  ctx.fill();
+
+  // Linha do chão
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  let started = false;
+  for (let i = 0; i < ground.length; i++) {
+    const gx = ground[i].x - cameraX;
+    if (gx > -20 && gx < 820) {
+      if (!started) {
+        ctx.moveTo(gx, ground[i].y);
+        started = true;
+      } else {
+        ctx.lineTo(gx, ground[i].y);
+      }
+    }
+  }
+  ctx.stroke();
+
+  // Moto
+  if (!bike.crashed) {
+    drawBike();
+  } else {
+    // Moto quebrada
+    ctx.save();
+    ctx.translate(bike.x - cameraX, bike.y);
+    ctx.rotate(bike.angle + 0.8);
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(-25, -6, 50, 12);
+    ctx.restore();
+  }
 }
 
 function loop() {
-  if (gameState === 'playing') {
-    updatePlayer();
-    updateGranny();
-  }
+  update();
   draw();
   requestAnimationFrame(loop);
 }
 
-function restart() {
-  player.x = 2 * TILE + 20;
-  player.y = 10 * TILE + 20;
-  player.keys = 0;
-  player.hidden = false;
-  keysEl.textContent = '0';
-  keyPositions.forEach(k => k.taken = false);
-  granny.x = 9 * TILE + 20;
-  granny.y = 2 * TILE + 20;
-  granny.alert = false;
-  gameState = 'playing';
-  messageEl.style.opacity = 0;
-  statusEl.textContent = 'Esconda-se e escape!';
-  showMessage('Sobreviva e escape!');
-}
-
 // Inicia
-showMessage('Fuja da Granny!', 2500);
+generateTerrain();
+showMessage('Acelere com ↑ e pegue as rampas!', 2500);
 loop();
 </script>
 </body>
