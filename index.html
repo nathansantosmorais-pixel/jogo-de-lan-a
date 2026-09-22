@@ -1,82 +1,93 @@
-import pygame
-import random
-import sys
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Jogo de Pênaltis</title>
+  <style>
+    body { background: green; margin: 0; overflow: hidden; }
+    canvas { display: block; margin: auto; background: #0a0; }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
 
-# Inicializa o Pygame
-pygame.init()
+    let ball = { x: 400, y: 500, radius: 15, dx: 0, dy: 0, shooting: false };
+    let goalkeeper = { x: 400, y: 120, width: 80, height: 40 };
+    let goal = null;
 
-# Configurações da tela
-WIDTH, HEIGHT = 800, 600
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Jogo de Pênaltis")
+    function drawField() {
+      ctx.fillStyle = "green";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-# Cores
-WHITE = (255, 255, 255)
-GREEN = (0, 200, 0)
-BLACK = (0, 0, 0)
+      // Gol
+      ctx.strokeStyle = "white";
+      ctx.lineWidth = 5;
+      ctx.strokeRect(200, 100, 400, 50);
 
-# Fonte
-font = pygame.font.SysFont("Arial", 36)
+      // Bola
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
 
-# Posições
-ball_pos = [WIDTH // 2, HEIGHT - 100]
-goalkeeper_pos = [WIDTH // 2, 150]
+      // Goleiro
+      ctx.fillStyle = "black";
+      ctx.fillRect(goalkeeper.x - goalkeeper.width/2, goalkeeper.y, goalkeeper.width, goalkeeper.height);
 
-# Variáveis
-ball_speed = [0, 0]
-shooting = False
-goal = None
+      // Mensagem
+      if (goal !== null) {
+        ctx.fillStyle = "white";
+        ctx.font = "40px Arial";
+        ctx.fillText(goal ? "GOOOOL!!!" : "Defendido!", 320, 300);
+      }
+    }
 
-clock = pygame.time.Clock()
+    function reset() {
+      ball.x = 400;
+      ball.y = 500;
+      ball.dx = 0;
+      ball.dy = 0;
+      ball.shooting = false;
+      goal = null;
+    }
 
-def draw_field():
-    screen.fill(GREEN)
-    pygame.draw.rect(screen, WHITE, (200, 100, 400, 50), 5)  # Gol
-    pygame.draw.circle(screen, WHITE, ball_pos, 20)          # Bola
-    pygame.draw.rect(screen, BLACK, (goalkeeper_pos[0]-40, goalkeeper_pos[1], 80, 40))  # Goleiro
+    function update() {
+      if (ball.shooting) {
+        ball.x += ball.dx;
+        ball.y += ball.dy;
+        ball.dy += 0.5; // gravidade
 
-def reset():
-    global ball_pos, ball_speed, shooting, goal
-    ball_pos = [WIDTH // 2, HEIGHT - 100]
-    ball_speed = [0, 0]
-    shooting = False
-    goal = None
+        if (ball.y < 150) {
+          if (Math.abs(ball.x - goalkeeper.x) < 50) {
+            goal = false; // defesa
+          } else {
+            goal = true; // gol
+          }
+          ball.shooting = false;
+          setTimeout(reset, 2000);
+        }
+      }
+    }
 
-while True:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
+    function loop() {
+      update();
+      drawField();
+      requestAnimationFrame(loop);
+    }
 
-        # Chutar com espaço
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE and not shooting:
-                shooting = True
-                ball_speed = [random.randint(-5, 5), -15]  # Direção aleatória
-                goalkeeper_pos[0] = random.randint(250, 550)  # Goleiro se move
+    document.addEventListener("keydown", (e) => {
+      if (e.code === "Space" && !ball.shooting) {
+        ball.shooting = true;
+        ball.dx = Math.random() * 10 - 5;
+        ball.dy = -15;
+        goalkeeper.x = 250 + Math.random() * 300; // goleiro se move
+      }
+    });
 
-    if shooting:
-        ball_pos[0] += ball_speed[0]
-        ball_pos[1] += ball_speed[1]
-        ball_speed[1] += 1  # Gravidade
-
-        # Verifica se chegou ao gol
-        if ball_pos[1] < 150:
-            if abs(ball_pos[0] - goalkeeper_pos[0]) < 50:
-                goal = False  # Defesa
-            else:
-                goal = True   # Gol
-            shooting = False
-
-    draw_field()
-
-    if goal is not None:
-        text = "GOOOOL!!!" if goal else "Defendido!"
-        msg = font.render(text, True, WHITE)
-        screen.blit(msg, (WIDTH//2 - msg.get_width()//2, HEIGHT//2))
-        pygame.display.flip()
-        pygame.time.wait(2000)
-        reset()
-
-    pygame.display.flip()
-    clock.tick(60)
+    loop();
+  </script>
+</body>
+</html>
