@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Pênaltis - Realista</title>
+<title>Pênaltis</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -92,8 +92,8 @@
     <div id="message"></div>
   </div>
   <div id="controls">
-    <b>Como jogar:</b> Clique e arraste para mirar a direção e a força. Solte para chutar!<br>
-    O goleiro tenta defender. Tente enganar ele!
+    <b>Como jogar:</b> Clique e <b>risque / arraste</b> o mouse para mirar a direção e a força. Solte para chutar!<br>
+    O goleiro tenta defender.
     <br>
     <button onclick="resetGame()">Reiniciar</button>
   </div>
@@ -124,11 +124,12 @@ const goalY = 65, goalLeft = 235, goalRight = 565, goalHeight = 135;
 let ball = { x: ballStart.x, y: ballStart.y, vx:0, vy:0, radius:12, moving:false };
 
 let keeper = {
-  x: 400, y: goalY + 90,
+  x: 400, y: goalY + 78,
   targetX: 400,
   diving: false,
   diveDir: 0,
-  diveProgress: 0
+  diveProgress: 0,
+  scale: 0.72          // ← goleiro menor
 };
 
 let player = {
@@ -158,7 +159,7 @@ function createParticles(x, y, color, count=16) {
   }
 }
 
-// ===================== JOGADOR (BATEDOR) MAIS REALISTA =====================
+// ===================== JOGADOR =====================
 function drawPlayer() {
   const p = player;
   ctx.save();
@@ -171,13 +172,13 @@ function drawPlayer() {
   const socks = '#1a73e8';
   const boots = '#1a1a1a';
 
-  // Sombra do jogador
+  // Sombra
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
   ctx.ellipse(0, 8, 28, 8, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // ===== PERNA DE APOIO (esquerda) =====
+  // Perna de apoio
   ctx.strokeStyle = skin;
   ctx.lineWidth = 9;
   ctx.lineCap = 'round';
@@ -186,7 +187,6 @@ function drawPlayer() {
   ctx.quadraticCurveTo(-16, -5, -18, 20);
   ctx.stroke();
 
-  // Meião
   ctx.strokeStyle = socks;
   ctx.lineWidth = 10;
   ctx.beginPath();
@@ -194,13 +194,12 @@ function drawPlayer() {
   ctx.lineTo(-18, 22);
   ctx.stroke();
 
-  // Chuteira
   ctx.fillStyle = boots;
   ctx.beginPath();
   ctx.ellipse(-22, 30, 13, 7, -0.35, 0, Math.PI*2);
   ctx.fill();
 
-  // ===== PERNA DO CHUTE (direita) =====
+  // Perna do chute
   ctx.strokeStyle = skin;
   ctx.lineWidth = 9;
   ctx.beginPath();
@@ -220,7 +219,7 @@ function drawPlayer() {
   ctx.ellipse(20 + p.legKick*24, 28, 13, 7, 0.25, 0, Math.PI*2);
   ctx.fill();
 
-  // ===== SHORT =====
+  // Short
   ctx.fillStyle = shorts;
   ctx.beginPath();
   ctx.moveTo(-20, -42);
@@ -229,15 +228,8 @@ function drawPlayer() {
   ctx.lineTo(-18, -22);
   ctx.closePath();
   ctx.fill();
-  // Vinco do short
-  ctx.strokeStyle = '#ddd';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(0, -42);
-  ctx.lineTo(0, -22);
-  ctx.stroke();
 
-  // ===== TRONCO =====
+  // Tronco
   ctx.fillStyle = shirt;
   ctx.beginPath();
   ctx.moveTo(-22, -78);
@@ -257,21 +249,19 @@ function drawPlayer() {
   ctx.closePath();
   ctx.fill();
 
-  // ===== BRAÇOS =====
+  // Braços
   ctx.strokeStyle = skin;
   ctx.lineWidth = 7;
-  // Braço esquerdo
   ctx.beginPath();
   ctx.moveTo(-20, -68);
   ctx.quadraticCurveTo(-32, -50 + p.armSwing*8, -36, -28);
   ctx.stroke();
-  // Braço direito
   ctx.beginPath();
   ctx.moveTo(20, -68);
   ctx.quadraticCurveTo(34, -52, 38 + p.armSwing*6, -30);
   ctx.stroke();
 
-  // ===== CABEÇA =====
+  // Cabeça
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.arc(0, -95, 16, 0, Math.PI*2);
@@ -293,24 +283,15 @@ function drawPlayer() {
   ctx.arc(5, -95, 2.2, 0, Math.PI*2);
   ctx.fill();
 
-  // Sobrancelha de concentração
-  ctx.strokeStyle = '#2c1b0e';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(-9, -101);
-  ctx.lineTo(-2, -100);
-  ctx.moveTo(2, -100);
-  ctx.lineTo(9, -101);
-  ctx.stroke();
-
   ctx.restore();
 }
 
-// ===================== GOLEIRO MAIS REALISTA =====================
+// ===================== GOLEIRO MENOR =====================
 function drawKeeper() {
   const k = keeper;
   ctx.save();
   ctx.translate(k.x, k.y);
+  ctx.scale(k.scale, k.scale);   // ← deixa menor
 
   let rot = 0, armL = -0.4, armR = 0.4, legL = 0.15, legR = -0.15;
 
@@ -318,17 +299,17 @@ function drawKeeper() {
     const t = Math.min(k.diveProgress, 1);
     rot = k.diveDir * t * 1.05;
 
-    if (k.diveDir < 0) { // esquerda
+    if (k.diveDir < 0) {
       armL = -2.1 * t;
       armR = 0.2;
       legL = 1.1 * t;
       legR = -0.6 * t;
-    } else if (k.diveDir > 0) { // direita
+    } else if (k.diveDir > 0) {
       armR = 2.1 * t;
       armL = -0.2;
       legR = -1.1 * t;
       legL = 0.6 * t;
-    } else { // centro (pula)
+    } else {
       armL = -1.4 * t;
       armR = 1.4 * t;
       legL = 0.5 * t;
@@ -350,18 +331,16 @@ function drawKeeper() {
   ctx.ellipse(0, 45, 32, 9, 0, 0, Math.PI*2);
   ctx.fill();
 
-  // ===== PERNAS =====
+  // Pernas
   ctx.strokeStyle = skin;
   ctx.lineWidth = 10;
   ctx.lineCap = 'round';
 
-  // Perna esquerda
   ctx.beginPath();
   ctx.moveTo(-10, 8);
   ctx.quadraticCurveTo(-14 + Math.sin(legL)*12, 32, -16 + Math.sin(legL)*22, 58);
   ctx.stroke();
 
-  // Perna direita
   ctx.beginPath();
   ctx.moveTo(10, 8);
   ctx.quadraticCurveTo(14 + Math.sin(legR)*12, 32, 16 + Math.sin(legR)*22, 58);
@@ -374,7 +353,7 @@ function drawKeeper() {
   ctx.ellipse(18 + Math.sin(legR)*22, 64, 12, 7, 0.2, 0, Math.PI*2);
   ctx.fill();
 
-  // ===== CALÇÃO =====
+  // Calção
   ctx.fillStyle = pants;
   ctx.beginPath();
   ctx.moveTo(-24, -18);
@@ -384,7 +363,7 @@ function drawKeeper() {
   ctx.closePath();
   ctx.fill();
 
-  // ===== TRONCO =====
+  // Tronco
   ctx.fillStyle = jersey;
   ctx.beginPath();
   ctx.moveTo(-24, -62);
@@ -394,40 +373,37 @@ function drawKeeper() {
   ctx.closePath();
   ctx.fill();
 
-  // Detalhe da camisa
   ctx.fillStyle = '#e0b000';
   ctx.fillRect(-24, -40, 48, 8);
 
-  // Número 1
+  // Número
   ctx.fillStyle = '#111';
   ctx.font = 'bold 26px Arial';
   ctx.textAlign = 'center';
   ctx.fillText('1', 0, -28);
 
-  // ===== BRAÇOS + LUVAS =====
+  // Braços
   ctx.strokeStyle = skin;
   ctx.lineWidth = 8;
 
-  // Braço esquerdo
   ctx.beginPath();
   ctx.moveTo(-22, -50);
   ctx.quadraticCurveTo(-38 + Math.cos(armL)*15, -28 + Math.sin(armL)*20, -48 + Math.cos(armL)*30, -2 + Math.sin(armL)*38);
   ctx.stroke();
 
-  // Braço direito
   ctx.beginPath();
   ctx.moveTo(22, -50);
   ctx.quadraticCurveTo(38 + Math.cos(armR)*15, -28 + Math.sin(armR)*20, 48 + Math.cos(armR)*30, -2 + Math.sin(armR)*38);
   ctx.stroke();
 
-  // Luvas grandes
+  // Luvas
   ctx.fillStyle = gloves;
   ctx.beginPath();
   ctx.arc(-48 + Math.cos(armL)*30, -2 + Math.sin(armL)*38, 13, 0, Math.PI*2);
   ctx.arc(48 + Math.cos(armR)*30, -2 + Math.sin(armR)*38, 13, 0, Math.PI*2);
   ctx.fill();
 
-  // ===== CABEÇA =====
+  // Cabeça
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.arc(0, -80, 17, 0, Math.PI*2);
@@ -449,21 +425,10 @@ function drawKeeper() {
   ctx.arc(6, -80, 2.5, 0, Math.PI*2);
   ctx.fill();
 
-  // Expressão de concentração
-  ctx.strokeStyle = '#1f1208';
-  ctx.lineWidth = 2.2;
-  ctx.beginPath();
-  ctx.moveTo(-10, -88);
-  ctx.lineTo(-3, -86);
-  ctx.moveTo(3, -86);
-  ctx.lineTo(10, -88);
-  ctx.stroke();
-
   ctx.restore();
 }
 
 function drawField() {
-  // Grama com faixas
   ctx.fillStyle = '#1b7a1b';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = 'rgba(255,255,255,0.035)';
@@ -471,17 +436,12 @@ function drawField() {
 
   ctx.strokeStyle = 'rgba(255,255,255,0.75)';
   ctx.lineWidth = 3;
-
-  // Grande área
   ctx.strokeRect(175, 45, 450, 190);
-  // Pequena área
   ctx.strokeRect(255, 45, 290, 95);
-  // Marca do pênalti
   ctx.beginPath();
   ctx.arc(400, 455, 5, 0, Math.PI*2);
   ctx.fillStyle = '#fff';
   ctx.fill();
-  // Arco
   ctx.beginPath();
   ctx.arc(400, 455, 75, Math.PI*1.2, Math.PI*1.8);
   ctx.stroke();
@@ -490,7 +450,6 @@ function drawField() {
 function drawGoal() {
   ctx.strokeStyle = '#f5f5f5';
   ctx.lineWidth = 11;
-  ctx.lineCap = 'butt';
   ctx.beginPath();
   ctx.moveTo(goalLeft, goalY + goalHeight);
   ctx.lineTo(goalLeft, goalY);
@@ -498,7 +457,6 @@ function drawGoal() {
   ctx.lineTo(goalRight, goalY + goalHeight);
   ctx.stroke();
 
-  // Rede
   ctx.strokeStyle = 'rgba(255,255,255,0.2)';
   ctx.lineWidth = 1.3;
   for(let i=0;i<=12;i++){
@@ -560,7 +518,6 @@ function shoot() {
   canShoot = false;
   isAiming = false;
 
-  // Animação de chute
   player.legKick = 1.1;
   player.lean = 1.2;
   player.armSwing = 1;
@@ -587,7 +544,7 @@ function decideKeeperDive() {
   keeper.diveDir = dir;
   keeper.diving = true;
   keeper.diveProgress = 0;
-  keeper.targetX = 400 + dir * 140;
+  keeper.targetX = 400 + dir * 130;
 }
 
 function resetBall() {
@@ -612,8 +569,10 @@ function update() {
     ball.vy += 0.20;
     ball.vx *= 0.993;
 
-    const hitW = keeper.diving ? 58 : 42;
-    const hitH = keeper.diving ? 52 : 65;
+    // Hitbox menor por causa do scale
+    const hitW = (keeper.diving ? 42 : 30) * keeper.scale;
+    const hitH = (keeper.diving ? 38 : 48) * keeper.scale;
+
     if (Math.abs(ball.x - keeper.x) < hitW && Math.abs(ball.y - keeper.y) < hitH) {
       ball.moving = false;
       saves++;
@@ -675,11 +634,12 @@ function draw() {
   drawPlayer();
   drawBall();
 
+  // Linha de mira (riscar)
   if (isAiming && canShoot) {
     const power = getAimPower();
     const angle = Math.atan2(aimStart.y - aimCurrent.y, aimCurrent.x - aimStart.x);
 
-    ctx.strokeStyle = 'rgba(255,255,0,0.6)';
+    ctx.strokeStyle = 'rgba(255,255,0,0.65)';
     ctx.lineWidth = 3;
     ctx.setLineDash([8,6]);
     ctx.beginPath();
@@ -695,6 +655,14 @@ function draw() {
     }
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Mostra o risco que você está fazendo
+    ctx.strokeStyle = 'rgba(255,200,0,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(aimStart.x, aimStart.y);
+    ctx.lineTo(aimCurrent.x, aimCurrent.y);
+    ctx.stroke();
 
     ctx.fillStyle = '#ff0';
     ctx.font = 'bold 15px Arial';
