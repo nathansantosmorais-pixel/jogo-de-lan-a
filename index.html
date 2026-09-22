@@ -158,19 +158,18 @@ function createParticles(x, y, color, count=16) {
   }
 }
 
-// ===================== CAMPO REALISTA =====================
+// ===================== CAMPO (sem linhas em volta do gol) =====================
 function drawField() {
-  // Céu / fundo do estádio
+  // Céu
   const skyGrad = ctx.createLinearGradient(0, 0, 0, 120);
   skyGrad.addColorStop(0, '#1a3a5c');
   skyGrad.addColorStop(1, '#0d2818');
   ctx.fillStyle = skyGrad;
   ctx.fillRect(0, 0, canvas.width, 120);
 
-  // Arquibancada simples
+  // Arquibancada
   ctx.fillStyle = '#2a2a2a';
   ctx.fillRect(0, 70, canvas.width, 50);
-  // Pessoas (pontos)
   for (let i = 0; i < 80; i++) {
     ctx.fillStyle = `hsl(${Math.random()*60+20}, 40%, ${30+Math.random()*30}%)`;
     ctx.beginPath();
@@ -178,7 +177,7 @@ function drawField() {
     ctx.fill();
   }
 
-  // Grama principal
+  // Grama
   const grassGrad = ctx.createLinearGradient(0, 120, 0, canvas.height);
   grassGrad.addColorStop(0, '#2d8a2d');
   grassGrad.addColorStop(0.5, '#228b22');
@@ -186,24 +185,13 @@ function drawField() {
   ctx.fillStyle = grassGrad;
   ctx.fillRect(0, 120, canvas.width, canvas.height - 120);
 
-  // Faixas de grama (efeito de corte)
+  // Faixas de grama
   for (let i = 0; i < 18; i++) {
     ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
     ctx.fillRect(0, 120 + i * 24, canvas.width, 24);
   }
 
-  // Linhas brancas do campo
-  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = 3.5;
-  ctx.lineJoin = 'round';
-
-  // Grande área
-  ctx.strokeRect(160, 50, 480, 200);
-
-  // Pequena área
-  ctx.strokeRect(250, 50, 300, 100);
-
-  // Marca do pênalti
+  // Só a marca do pênalti (sem grande área e pequena área)
   ctx.beginPath();
   ctx.arc(400, 455, 6, 0, Math.PI*2);
   ctx.fillStyle = '#fff';
@@ -211,60 +199,38 @@ function drawField() {
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 2;
   ctx.stroke();
-
-  // Arco da área (meio círculo)
-  ctx.beginPath();
-  ctx.arc(400, 250, 70, 0.15 * Math.PI, 0.85 * Math.PI);
-  ctx.stroke();
-
-  // Círculo central (parcial, só pra enfeite)
-  ctx.beginPath();
-  ctx.arc(400, 540, 60, Math.PI * 1.15, Math.PI * 1.85);
-  ctx.stroke();
 }
 
-// ===================== GOL REALISTA =====================
+// ===================== GOL (limpo) =====================
 function drawGoal() {
-  // Rede (atrás)
-  ctx.strokeStyle = 'rgba(220,220,220,0.35)';
-  ctx.lineWidth = 1.2;
+  // Rede bem leve
+  ctx.strokeStyle = 'rgba(220,220,220,0.25)';
+  ctx.lineWidth = 1;
 
-  // Linhas verticais da rede
-  for (let i = 0; i <= 14; i++) {
-    const x = goalLeft + (i / 14) * (goalRight - goalLeft);
+  for (let i = 0; i <= 12; i++) {
+    const x = goalLeft + (i / 12) * (goalRight - goalLeft);
     ctx.beginPath();
     ctx.moveTo(x, goalY);
-    ctx.lineTo(x - 12, goalY + goalHeight + 15);
+    ctx.lineTo(x - 8, goalY + goalHeight + 10);
     ctx.stroke();
   }
-  // Linhas horizontais da rede
-  for (let i = 0; i <= 8; i++) {
-    const y = goalY + (i / 8) * (goalHeight + 10);
+  for (let i = 0; i <= 6; i++) {
+    const y = goalY + (i / 6) * (goalHeight + 5);
     ctx.beginPath();
-    ctx.moveTo(goalLeft - 5, y);
-    ctx.lineTo(goalRight + 5, y);
+    ctx.moveTo(goalLeft, y);
+    ctx.lineTo(goalRight, y);
     ctx.stroke();
   }
 
-  // Trave (branca e grossa)
+  // Trave limpa
   ctx.strokeStyle = '#f8f8f8';
-  ctx.lineWidth = 12;
+  ctx.lineWidth = 11;
   ctx.lineCap = 'butt';
   ctx.beginPath();
   ctx.moveTo(goalLeft, goalY + goalHeight + 5);
   ctx.lineTo(goalLeft, goalY);
   ctx.lineTo(goalRight, goalY);
   ctx.lineTo(goalRight, goalY + goalHeight + 5);
-  ctx.stroke();
-
-  // Sombra da trave
-  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(goalLeft + 4, goalY + goalHeight + 5);
-  ctx.lineTo(goalLeft + 4, goalY + 3);
-  ctx.lineTo(goalRight + 4, goalY + 3);
-  ctx.lineTo(goalRight + 4, goalY + goalHeight + 5);
   ctx.stroke();
 }
 
