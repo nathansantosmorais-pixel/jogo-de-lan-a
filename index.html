@@ -33,7 +33,6 @@
   }
   canvas {
     display: block;
-    background: linear-gradient(to bottom, #0ea5e9 0%, #38bdf8 40%, #94a3b8 40%, #64748b 100%);
   }
   #ui {
     position: absolute;
@@ -109,45 +108,36 @@ let keys = {};
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
-// Moto
 let bike = {
   x: 150,
   y: 280,
   vx: 0,
   vy: 0,
-  angle: 0,          // rotação em radianos
+  angle: 0,
   angularVel: 0,
   onGround: true,
-  wheelBase: 50,
   crashed: false
 };
 
-// Câmera
 let cameraX = 0;
-
-// Chão e rampas
 let ground = [];
 let distance = 0;
 let gameOver = false;
 
-// Gera o terreno com rampas
 function generateTerrain() {
   ground = [];
   let x = 0;
   let y = 320;
 
-  // Chão inicial plano
   for (let i = 0; i < 20; i++) {
     ground.push({ x: x, y: y });
     x += 40;
   }
 
-  // Várias rampas e obstáculos
   for (let i = 0; i < 40; i++) {
     const type = Math.random();
 
     if (type < 0.35) {
-      // Rampa para cima
       const height = 40 + Math.random() * 70;
       const length = 80 + Math.random() * 60;
       for (let j = 0; j < length / 20; j++) {
@@ -155,21 +145,18 @@ function generateTerrain() {
         ground.push({ x: x, y: y });
         x += 20;
       }
-      // Descida
       for (let j = 0; j < length / 20; j++) {
         y += height / (length / 20);
         ground.push({ x: x, y: y });
         x += 20;
       }
     } else if (type < 0.55) {
-      // Rampa grande (salto)
       const height = 80 + Math.random() * 60;
       for (let j = 0; j < 6; j++) {
         y -= height / 6;
         ground.push({ x: x, y: y });
         x += 25;
       }
-      // Espaço no ar (vazio)
       x += 120 + Math.random() * 80;
       y += height * 0.3;
       for (let j = 0; j < 8; j++) {
@@ -178,7 +165,6 @@ function generateTerrain() {
         y += 4;
       }
     } else {
-      // Chão plano ondulado
       for (let j = 0; j < 8; j++) {
         y += (Math.random() - 0.5) * 15;
         y = Math.max(260, Math.min(350, y));
@@ -188,7 +174,6 @@ function generateTerrain() {
     }
   }
 
-  // Final
   for (let i = 0; i < 15; i++) {
     ground.push({ x: x, y: 320 });
     x += 40;
@@ -196,7 +181,6 @@ function generateTerrain() {
 }
 
 function getGroundY(atX) {
-  // Encontra a altura do chão na posição x
   for (let i = 0; i < ground.length - 1; i++) {
     if (atX >= ground[i].x && atX <= ground[i + 1].x) {
       const t = (atX - ground[i].x) / (ground[i + 1].x - ground[i].x);
@@ -243,7 +227,6 @@ function restart() {
 function update() {
   if (gameOver) return;
 
-  // Controles
   const accel = keys['arrowup'] || keys['w'];
   const brake = keys['arrowdown'] || keys['s'];
   const left  = keys['arrowleft'] || keys['a'];
@@ -252,39 +235,31 @@ function update() {
   if (bike.onGround) {
     if (accel) bike.vx += 0.35;
     if (brake) bike.vx *= 0.92;
-    bike.vx *= 0.985; // atrito
+    bike.vx *= 0.985;
 
-    // Inclinar no chão
     if (left)  bike.angularVel -= 0.004;
     if (right) bike.angularVel += 0.004;
   } else {
-    // No ar - controle de rotação (manobra)
     if (left)  bike.angularVel -= 0.006;
     if (right) bike.angularVel += 0.006;
     bike.angularVel *= 0.98;
   }
 
-  // Limite de velocidade
   bike.vx = Math.max(-3, Math.min(14, bike.vx));
 
-  // Física
   bike.x += bike.vx;
   bike.y += bike.vy;
   bike.angle += bike.angularVel;
 
-  // Gravidade
   if (!bike.onGround) {
     bike.vy += 0.45;
   }
 
-  // Colisão com o chão
   const groundY = getGroundY(bike.x);
   const groundAngle = getGroundAngle(bike.x);
 
   if (bike.y + 18 > groundY) {
-    // Tocou o chão
     if (bike.vy > 8 || Math.abs(bike.angle - groundAngle) > 1.1) {
-      // Queda feia → crash
       bike.crashed = true;
       gameOver = true;
       showMessage('CAIU! 💥', 99999);
@@ -295,11 +270,9 @@ function update() {
     bike.vy = 0;
     bike.onGround = true;
 
-    // Alinha a moto com o chão
     bike.angle += (groundAngle - bike.angle) * 0.25;
     bike.angularVel *= 0.7;
 
-    // Pequeno boost em rampas
     if (groundAngle < -0.3 && bike.vx > 4) {
       bike.vy = groundAngle * bike.vx * 0.8;
       bike.onGround = false;
@@ -308,15 +281,12 @@ function update() {
     bike.onGround = false;
   }
 
-  // Câmera segue a moto
   cameraX = bike.x - 200;
 
-  // Distância
   distance = Math.max(0, Math.floor((bike.x - 150) / 10));
   distEl.textContent = distance;
   speedEl.textContent = Math.floor(Math.abs(bike.vx) * 12);
 
-  // Caiu do mapa
   if (bike.y > 500) {
     gameOver = true;
     showMessage('CAIU NO ABISMO! 😱', 99999);
@@ -334,7 +304,7 @@ function drawBike() {
   ctx.ellipse(0, 22, 30, 6, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Corpo da moto
+  // Corpo
   ctx.fillStyle = '#ef4444';
   ctx.fillRect(-28, -8, 56, 14);
 
@@ -358,7 +328,6 @@ function drawBike() {
   ctx.arc(22, 12, 12, 0, Math.PI * 2);
   ctx.fill();
 
-  // Raios das rodas
   ctx.strokeStyle = '#64748b';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -374,13 +343,11 @@ function drawBike() {
   ctx.arc(5, -22, 9, 0, Math.PI * 2);
   ctx.fill();
 
-  // Capacete
   ctx.fillStyle = '#3b82f6';
   ctx.beginPath();
   ctx.arc(5, -24, 8, Math.PI, Math.PI * 2);
   ctx.fill();
 
-  // Corpo do piloto
   ctx.strokeStyle = '#1e40af';
   ctx.lineWidth = 5;
   ctx.beginPath();
@@ -392,7 +359,17 @@ function drawBike() {
 }
 
 function draw() {
-  // Céu já está no background do canvas
+  // Limpa tudo (remove as marcas)
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Céu
+  const sky = ctx.createLinearGradient(0, 0, 0, 400);
+  sky.addColorStop(0, '#0ea5e9');
+  sky.addColorStop(0.45, '#38bdf8');
+  sky.addColorStop(0.45, '#94a3b8');
+  sky.addColorStop(1, '#64748b');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Montanhas de fundo
   ctx.fillStyle = '#64748b';
@@ -405,7 +382,7 @@ function draw() {
     ctx.fill();
   }
 
-  // Chão / terreno
+  // Terreno
   ctx.fillStyle = '#334155';
   ctx.beginPath();
   ctx.moveTo(0, 400);
@@ -441,7 +418,6 @@ function draw() {
   if (!bike.crashed) {
     drawBike();
   } else {
-    // Moto quebrada
     ctx.save();
     ctx.translate(bike.x - cameraX, bike.y);
     ctx.rotate(bike.angle + 0.8);
@@ -457,7 +433,6 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// Inicia
 generateTerrain();
 showMessage('Acelere com ↑ e pegue as rampas!', 2500);
 loop();
