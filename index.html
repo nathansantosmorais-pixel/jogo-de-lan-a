@@ -101,8 +101,8 @@
     <div id="message"></div>
   </div>
   <div id="controls">
-    <b>Controles:</b> ← → / A D inclinar | ↑ / W acelerar | ↓ / S frear<br>
-    Poucas subidas + obstáculos para pular! Só cai de ponta-cabeça.
+    <b>Controles:</b> ← → / A D inclinar | ↑ / W acelerar | ↓ / S frear | <b>ENTER</b> pular<br>
+    Use ENTER para pular os obstáculos!
     <br>
     <button onclick="restart()">Reiniciar</button>
   </div>
@@ -116,7 +116,11 @@ const rankingEl = document.getElementById('ranking');
 const messageEl = document.getElementById('message');
 
 let keys = {};
-window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keydown', e => {
+  keys[e.key.toLowerCase()] = true;
+  // Impede o Enter de fazer qualquer coisa padrão
+  if (e.key === 'Enter') e.preventDefault();
+});
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 const COLORS = ['#ef4444', '#22c55e', '#a855f7', '#f59e0b'];
@@ -125,7 +129,7 @@ const NAMES  = ['Você', 'Rival 1', 'Rival 2', 'Rival 3'];
 let bikes = [];
 let cameraX = 0;
 let ground = [];
-let obstacles = []; // obstáculos para pular
+let obstacles = [];
 let distance = 0;
 let gameOver = false;
 let finished = false;
@@ -142,7 +146,8 @@ function createBike(x, color, isPlayer = false) {
     finished: false,
     color,
     isPlayer,
-    finishTime: 0
+    finishTime: 0,
+    canJump: true
   };
 }
 
@@ -152,18 +157,15 @@ function generateTerrain() {
   let x = 0;
   let y = 310;
 
-  // Início bem plano
   for (let i = 0; i < 30; i++) {
     ground.push({ x, y });
     x += 28;
   }
 
-  // Poucas seções de terreno
   for (let i = 0; i < 22; i++) {
     const type = Math.random();
 
     if (type < 0.18) {
-      // ===== POUCA SUBIDA suave =====
       const height = 35 + Math.random() * 30;
       const upLen = 100 + Math.random() * 40;
       const downLen = 110 + Math.random() * 50;
@@ -183,11 +185,9 @@ function generateTerrain() {
       y += height;
 
     } else if (type < 0.42) {
-      // ===== RAMPA DE SALTO + OBSTÁCULO =====
       const height = 55 + Math.random() * 35;
       const rampLen = 90 + Math.random() * 30;
 
-      // rampa
       for (let t = 0; t <= 1; t += 0.04) {
         const ease = Math.pow(t, 1.5);
         ground.push({ x, y: y - height * ease });
@@ -196,12 +196,10 @@ function generateTerrain() {
       y -= height;
       for (let j = 0; j < 2; j++) { ground.push({ x, y }); x += 12; }
 
-      // vão + obstáculo no meio
       const gapStart = x;
       const gap = 90 + Math.random() * 70;
       x += gap;
 
-      // coloca obstáculo (caixa/pedra) no chão depois do vão
       obstacles.push({
         x: gapStart + gap * 0.55,
         y: y + 8,
@@ -209,7 +207,6 @@ function generateTerrain() {
         h: 22 + Math.random() * 16
       });
 
-      // aterrissagem
       const landHeight = height * 0.5;
       for (let t = 0; t <= 1; t += 0.06) {
         ground.push({ x, y: y + landHeight * t * t });
@@ -218,12 +215,10 @@ function generateTerrain() {
       y += landHeight;
 
     } else if (type < 0.55) {
-      // ===== OBSTÁCULO NO CHÃO PLANO (para pular com velocidade) =====
       for (let j = 0; j < 6; j++) {
         ground.push({ x, y });
         x += 25;
       }
-      // obstáculo
       obstacles.push({
         x: x - 40,
         y: y - 5,
@@ -236,7 +231,6 @@ function generateTerrain() {
       }
 
     } else {
-      // ===== TRECHO PLANO =====
       for (let j = 0; j < 12; j++) {
         y += (Math.random() - 0.5) * 6;
         y = Math.max(290, Math.min(325, y));
@@ -246,7 +240,6 @@ function generateTerrain() {
     }
   }
 
-  // Final plano
   for (let i = 0; i < 18; i++) {
     ground.push({ x, y: 310 });
     x += 28;
@@ -302,7 +295,7 @@ function restart() {
   raceFinished = false;
   messageEl.style.opacity = 0;
   generateTerrain();
-  showMessage('Pule os obstáculos! 🏁', 2000);
+  showMessage('ENTER para pular os obstáculos!', 2200);
   updateRanking();
 }
 
@@ -325,6 +318,7 @@ function updateBike(b) {
     const brake = keys['arrowdown'] || keys['s'];
     const left  = keys['arrowleft'] || keys['a'];
     const right = keys['arrowright'] || keys['d'];
+    const jump  = keys['enter'];   // ← ENTER para pular
 
     if (b.onGround) {
       if (accel) b.vx += 0.34;
@@ -332,11 +326,22 @@ function updateBike(b) {
       b.vx *= 0.986;
       if (left)  b.angularVel -= 0.0036;
       if (right) b.angularVel += 0.0036;
+
+      // PULO com ENTER
+      if (jump && b.canJump) {
+        b.vy = -9.5;          // força do pulo
+        b.onGround = false;
+        b.canJump = false;
+      }
     } else {
       if (left)  b.angularVel -= 0.0058;
       if (right) b.angularVel += 0.0058;
       b.angularVel *= 0.97;
     }
+
+    // libera o pulo de novo quando soltar a tecla
+    if (!jump) b.canJump = true;
+
   } else {
     // IA
     if (b.onGround) {
@@ -345,15 +350,18 @@ function updateBike(b) {
       const ga = getGroundAngle(b.x);
       b.angularVel += (ga - b.angle) * 0.02;
 
-      // IA tenta pular obstáculos (acelera antes)
+      // IA pula perto de obstáculos
       for (const o of obstacles) {
-        if (o.x - b.x < 120 && o.x - b.x > 0) {
-          b.vx += 0.15;
+        if (o.x - b.x < 90 && o.x - b.x > 20 && b.canJump) {
+          b.vy = -9.2;
+          b.onGround = false;
+          b.canJump = false;
         }
       }
     } else {
       b.angularVel += -b.angle * 0.016;
       b.angularVel *= 0.96;
+      b.canJump = true;
     }
   }
 
@@ -371,7 +379,6 @@ function updateBike(b) {
   const groundAngle = getGroundAngle(b.x);
 
   if (b.y + 17 > groundY) {
-    // Colisão com obstáculo no chão
     if (checkObstacleCollision(b)) {
       b.crashed = true;
       if (b.isPlayer) {
@@ -381,7 +388,6 @@ function updateBike(b) {
       return;
     }
 
-    // Só cai de ponta-cabeça
     if (Math.abs(b.angle) > 2.05) {
       b.crashed = true;
       if (b.isPlayer) {
@@ -394,6 +400,7 @@ function updateBike(b) {
     b.y = groundY - 17;
     b.vy *= 0.12;
     b.onGround = true;
+    b.canJump = true;
     b.angle += (groundAngle - b.angle) * 0.3;
     b.angularVel *= 0.6;
 
@@ -405,7 +412,6 @@ function updateBike(b) {
     b.onGround = false;
   }
 
-  // Chegada
   if (b.x >= finishX && !b.finished) {
     b.finished = true;
     b.finishTime = performance.now();
@@ -460,16 +466,13 @@ function drawObstacles() {
     const ox = o.x - cameraX;
     if (ox < -50 || ox > 850) continue;
 
-    // Caixa / obstáculo
     ctx.fillStyle = '#78716c';
     ctx.fillRect(ox, o.y - o.h, o.w, o.h);
 
-    // Detalhes
     ctx.strokeStyle = '#44403c';
     ctx.lineWidth = 2;
     ctx.strokeRect(ox, o.y - o.h, o.w, o.h);
 
-    // Faixa de aviso
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(ox, o.y - o.h, o.w, 6);
     ctx.fillStyle = '#0f172a';
@@ -575,7 +578,6 @@ function draw() {
     ctx.fill();
   }
 
-  // terreno
   ctx.fillStyle = '#334155';
   ctx.beginPath();
   ctx.moveTo(-20, 400);
