@@ -68,6 +68,19 @@
     transition: opacity 0.3s;
     text-shadow: 0 0 20px #000;
   }
+  #countdown {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 90px;
+    font-weight: 900;
+    color: #fbbf24;
+    text-shadow: 0 0 30px #f59e0b, 0 4px 12px #000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+  }
   #controls {
     margin-top: 10px;
     text-align: center;
@@ -99,10 +112,11 @@
     </div>
     <div id="ranking"></div>
     <div id="message"></div>
+    <div id="countdown"></div>
   </div>
   <div id="controls">
     <b>Controles:</b> ← → / A D inclinar | ↑ / W acelerar | ↓ / S frear | <b>ENTER</b> pular<br>
-    Use ENTER para pular os obstáculos!
+    Espere o 3... 2... 1... JÁ!
     <br>
     <button onclick="restart()">Reiniciar</button>
   </div>
@@ -114,11 +128,11 @@ const distEl = document.getElementById('dist');
 const speedEl = document.getElementById('speed');
 const rankingEl = document.getElementById('ranking');
 const messageEl = document.getElementById('message');
+const countdownEl = document.getElementById('countdown');
 
 let keys = {};
 window.addEventListener('keydown', e => {
   keys[e.key.toLowerCase()] = true;
-  // Impede o Enter de fazer qualquer coisa padrão
   if (e.key === 'Enter') e.preventDefault();
 });
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -135,6 +149,8 @@ let gameOver = false;
 let finished = false;
 let finishX = 0;
 let raceFinished = false;
+let raceStarted = false;   // só libera os controles depois do "JÁ!"
+let countingDown = false;
 
 function createBike(x, color, isPlayer = false) {
   return {
@@ -169,7 +185,6 @@ function generateTerrain() {
       const height = 35 + Math.random() * 30;
       const upLen = 100 + Math.random() * 40;
       const downLen = 110 + Math.random() * 50;
-
       for (let t = 0; t <= 1; t += 0.05) {
         const ease = t * t * (3 - 2 * t);
         ground.push({ x, y: y - height * ease });
@@ -183,11 +198,9 @@ function generateTerrain() {
         x += downLen * 0.05;
       }
       y += height;
-
     } else if (type < 0.42) {
       const height = 55 + Math.random() * 35;
       const rampLen = 90 + Math.random() * 30;
-
       for (let t = 0; t <= 1; t += 0.04) {
         const ease = Math.pow(t, 1.5);
         ground.push({ x, y: y - height * ease });
@@ -195,25 +208,21 @@ function generateTerrain() {
       }
       y -= height;
       for (let j = 0; j < 2; j++) { ground.push({ x, y }); x += 12; }
-
       const gapStart = x;
       const gap = 90 + Math.random() * 70;
       x += gap;
-
       obstacles.push({
         x: gapStart + gap * 0.55,
         y: y + 8,
         w: 28 + Math.random() * 18,
         h: 22 + Math.random() * 16
       });
-
       const landHeight = height * 0.5;
       for (let t = 0; t <= 1; t += 0.06) {
         ground.push({ x, y: y + landHeight * t * t });
         x += 22;
       }
       y += landHeight;
-
     } else if (type < 0.55) {
       for (let j = 0; j < 6; j++) {
         ground.push({ x, y });
@@ -229,7 +238,6 @@ function generateTerrain() {
         ground.push({ x, y });
         x += 25;
       }
-
     } else {
       for (let j = 0; j < 12; j++) {
         y += (Math.random() - 0.5) * 6;
@@ -281,6 +289,32 @@ function showMessage(text, duration = 2000) {
   }
 }
 
+function showCountdown(text) {
+  countdownEl.textContent = text;
+  countdownEl.style.opacity = 1;
+  countdownEl.style.transform = 'translate(-50%, -50%) scale(1.2)';
+  setTimeout(() => {
+    countdownEl.style.transform = 'translate(-50%, -50%) scale(1)';
+  }, 50);
+}
+
+function startCountdown() {
+  countingDown = true;
+  raceStarted = false;
+
+  showCountdown('3');
+  setTimeout(() => showCountdown('2'), 900);
+  setTimeout(() => showCountdown('1'), 1800);
+  setTimeout(() => {
+    showCountdown('JÁ!');
+    setTimeout(() => {
+      countdownEl.style.opacity = 0;
+      countingDown = false;
+      raceStarted = true;
+    }, 700);
+  }, 2700);
+}
+
 function restart() {
   bikes = [
     createBike(130, COLORS[0], true),
@@ -293,10 +327,12 @@ function restart() {
   gameOver = false;
   finished = false;
   raceFinished = false;
+  raceStarted = false;
   messageEl.style.opacity = 0;
+  countdownEl.style.opacity = 0;
   generateTerrain();
-  showMessage('ENTER para pular os obstáculos!', 2200);
   updateRanking();
+  startCountdown();
 }
 
 function checkObstacleCollision(b) {
@@ -313,12 +349,15 @@ function checkObstacleCollision(b) {
 function updateBike(b) {
   if (b.crashed || b.finished) return;
 
+  // Só move depois do "JÁ!"
+  if (!raceStarted) return;
+
   if (b.isPlayer) {
     const accel = keys['arrowup'] || keys['w'];
     const brake = keys['arrowdown'] || keys['s'];
     const left  = keys['arrowleft'] || keys['a'];
     const right = keys['arrowright'] || keys['d'];
-    const jump  = keys['enter'];   // ← ENTER para pular
+    const jump  = keys['enter'];
 
     if (b.onGround) {
       if (accel) b.vx += 0.34;
@@ -327,9 +366,8 @@ function updateBike(b) {
       if (left)  b.angularVel -= 0.0036;
       if (right) b.angularVel += 0.0036;
 
-      // PULO com ENTER
       if (jump && b.canJump) {
-        b.vy = -9.5;          // força do pulo
+        b.vy = -9.5;
         b.onGround = false;
         b.canJump = false;
       }
@@ -338,19 +376,15 @@ function updateBike(b) {
       if (right) b.angularVel += 0.0058;
       b.angularVel *= 0.97;
     }
-
-    // libera o pulo de novo quando soltar a tecla
     if (!jump) b.canJump = true;
 
   } else {
-    // IA
     if (b.onGround) {
       b.vx += 0.27 + Math.random() * 0.09;
       b.vx *= 0.987;
       const ga = getGroundAngle(b.x);
       b.angularVel += (ga - b.angle) * 0.02;
 
-      // IA pula perto de obstáculos
       for (const o of obstacles) {
         if (o.x - b.x < 90 && o.x - b.x > 20 && b.canJump) {
           b.vy = -9.2;
@@ -465,14 +499,11 @@ function drawObstacles() {
   for (const o of obstacles) {
     const ox = o.x - cameraX;
     if (ox < -50 || ox > 850) continue;
-
     ctx.fillStyle = '#78716c';
     ctx.fillRect(ox, o.y - o.h, o.w, o.h);
-
     ctx.strokeStyle = '#44403c';
     ctx.lineWidth = 2;
     ctx.strokeRect(ox, o.y - o.h, o.w, o.h);
-
     ctx.fillStyle = '#f59e0b';
     ctx.fillRect(ox, o.y - o.h, o.w, 6);
     ctx.fillStyle = '#0f172a';
