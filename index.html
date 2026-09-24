@@ -102,7 +102,7 @@
   </div>
   <div id="controls">
     <b>Controles:</b> ← → / A D inclinar | ↑ / W acelerar | ↓ / S frear<br>
-    Compita contra 3 adversários! Só cai de ponta-cabeça.
+    Poucas subidas + obstáculos para pular! Só cai de ponta-cabeça.
     <br>
     <button onclick="restart()">Reiniciar</button>
   </div>
@@ -125,6 +125,7 @@ const NAMES  = ['Você', 'Rival 1', 'Rival 2', 'Rival 3'];
 let bikes = [];
 let cameraX = 0;
 let ground = [];
+let obstacles = []; // obstáculos para pular
 let distance = 0;
 let gameOver = false;
 let finished = false;
@@ -147,72 +148,110 @@ function createBike(x, color, isPlayer = false) {
 
 function generateTerrain() {
   ground = [];
-  let x = 0, y = 310;
+  obstacles = [];
+  let x = 0;
+  let y = 310;
 
-  for (let i = 0; i < 22; i++) {
+  // Início bem plano
+  for (let i = 0; i < 30; i++) {
     ground.push({ x, y });
-    x += 30;
+    x += 28;
   }
 
-  for (let i = 0; i < 28; i++) {
+  // Poucas seções de terreno
+  for (let i = 0; i < 22; i++) {
     const type = Math.random();
-    if (type < 0.38) {
-      const height = 48 + Math.random() * 50;
-      const upLen = 85 + Math.random() * 45;
-      const downLen = 95 + Math.random() * 55;
-      for (let t = 0; t <= 1; t += 0.04) {
+
+    if (type < 0.18) {
+      // ===== POUCA SUBIDA suave =====
+      const height = 35 + Math.random() * 30;
+      const upLen = 100 + Math.random() * 40;
+      const downLen = 110 + Math.random() * 50;
+
+      for (let t = 0; t <= 1; t += 0.05) {
         const ease = t * t * (3 - 2 * t);
         ground.push({ x, y: y - height * ease });
-        x += upLen * 0.04;
+        x += upLen * 0.05;
       }
       y -= height;
-      for (let j = 0; j < 3; j++) { ground.push({ x, y }); x += 16; }
-      for (let t = 0; t <= 1; t += 0.04) {
+      for (let j = 0; j < 2; j++) { ground.push({ x, y }); x += 18; }
+      for (let t = 0; t <= 1; t += 0.05) {
         const ease = t * t * (3 - 2 * t);
         ground.push({ x, y: y + height * ease });
-        x += downLen * 0.04;
+        x += downLen * 0.05;
       }
       y += height;
-    } else if (type < 0.62) {
-      const height = 65 + Math.random() * 45;
-      const rampLen = 100 + Math.random() * 35;
-      for (let t = 0; t <= 1; t += 0.035) {
-        const ease = Math.pow(t, 1.55);
+
+    } else if (type < 0.42) {
+      // ===== RAMPA DE SALTO + OBSTÁCULO =====
+      const height = 55 + Math.random() * 35;
+      const rampLen = 90 + Math.random() * 30;
+
+      // rampa
+      for (let t = 0; t <= 1; t += 0.04) {
+        const ease = Math.pow(t, 1.5);
         ground.push({ x, y: y - height * ease });
-        x += rampLen * 0.035;
+        x += rampLen * 0.04;
       }
       y -= height;
       for (let j = 0; j < 2; j++) { ground.push({ x, y }); x += 12; }
-      x += 95 + Math.random() * 80;
-      const landHeight = height * 0.55;
-      for (let t = 0; t <= 1; t += 0.05) {
+
+      // vão + obstáculo no meio
+      const gapStart = x;
+      const gap = 90 + Math.random() * 70;
+      x += gap;
+
+      // coloca obstáculo (caixa/pedra) no chão depois do vão
+      obstacles.push({
+        x: gapStart + gap * 0.55,
+        y: y + 8,
+        w: 28 + Math.random() * 18,
+        h: 22 + Math.random() * 16
+      });
+
+      // aterrissagem
+      const landHeight = height * 0.5;
+      for (let t = 0; t <= 1; t += 0.06) {
         ground.push({ x, y: y + landHeight * t * t });
-        x += 24;
+        x += 22;
       }
       y += landHeight;
-    } else if (type < 0.78) {
-      for (let j = 0; j < 5; j++) {
-        const h = 16 + Math.random() * 20;
-        for (let t = 0; t <= 1; t += 0.12) {
-          ground.push({ x, y: y - h * Math.sin(t * Math.PI) });
-          x += 13;
-        }
+
+    } else if (type < 0.55) {
+      // ===== OBSTÁCULO NO CHÃO PLANO (para pular com velocidade) =====
+      for (let j = 0; j < 6; j++) {
+        ground.push({ x, y });
+        x += 25;
       }
+      // obstáculo
+      obstacles.push({
+        x: x - 40,
+        y: y - 5,
+        w: 32 + Math.random() * 20,
+        h: 26 + Math.random() * 18
+      });
+      for (let j = 0; j < 8; j++) {
+        ground.push({ x, y });
+        x += 25;
+      }
+
     } else {
-      for (let j = 0; j < 9; j++) {
-        y += (Math.random() - 0.5) * 11;
-        y = Math.max(255, Math.min(335, y));
+      // ===== TRECHO PLANO =====
+      for (let j = 0; j < 12; j++) {
+        y += (Math.random() - 0.5) * 6;
+        y = Math.max(290, Math.min(325, y));
         ground.push({ x, y });
         x += 26;
       }
     }
   }
 
-  for (let i = 0; i < 16; i++) {
+  // Final plano
+  for (let i = 0; i < 18; i++) {
     ground.push({ x, y: 310 });
     x += 28;
   }
-  finishX = x + 15;
+  finishX = x + 10;
   for (let i = 0; i < 10; i++) {
     ground.push({ x, y: 310 });
     x += 28;
@@ -251,10 +290,10 @@ function showMessage(text, duration = 2000) {
 
 function restart() {
   bikes = [
-    createBike(120, COLORS[0], true),
-    createBike(80,  COLORS[1]),
-    createBike(50,  COLORS[2]),
-    createBike(20,  COLORS[3])
+    createBike(130, COLORS[0], true),
+    createBike(90,  COLORS[1]),
+    createBike(55,  COLORS[2]),
+    createBike(25,  COLORS[3])
   ];
   cameraX = 0;
   distance = 0;
@@ -263,11 +302,22 @@ function restart() {
   raceFinished = false;
   messageEl.style.opacity = 0;
   generateTerrain();
-  showMessage('Corrida iniciada! 🏁', 2000);
+  showMessage('Pule os obstáculos! 🏁', 2000);
   updateRanking();
 }
 
-function updateBike(b, isAI = false) {
+function checkObstacleCollision(b) {
+  if (b.crashed || !b.onGround) return false;
+  for (const o of obstacles) {
+    if (b.x + 18 > o.x && b.x - 18 < o.x + o.w &&
+        b.y + 12 > o.y - o.h) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function updateBike(b) {
   if (b.crashed || b.finished) return;
 
   if (b.isPlayer) {
@@ -277,7 +327,7 @@ function updateBike(b, isAI = false) {
     const right = keys['arrowright'] || keys['d'];
 
     if (b.onGround) {
-      if (accel) b.vx += 0.33;
+      if (accel) b.vx += 0.34;
       if (brake) b.vx *= 0.90;
       b.vx *= 0.986;
       if (left)  b.angularVel -= 0.0036;
@@ -288,21 +338,26 @@ function updateBike(b, isAI = false) {
       b.angularVel *= 0.97;
     }
   } else {
-    // IA simples
+    // IA
     if (b.onGround) {
-      b.vx += 0.28 + Math.random() * 0.08;
+      b.vx += 0.27 + Math.random() * 0.09;
       b.vx *= 0.987;
-      // tenta se alinhar com o chão
       const ga = getGroundAngle(b.x);
       b.angularVel += (ga - b.angle) * 0.02;
+
+      // IA tenta pular obstáculos (acelera antes)
+      for (const o of obstacles) {
+        if (o.x - b.x < 120 && o.x - b.x > 0) {
+          b.vx += 0.15;
+        }
+      }
     } else {
-      // no ar tenta estabilizar
-      b.angularVel += -b.angle * 0.015;
+      b.angularVel += -b.angle * 0.016;
       b.angularVel *= 0.96;
     }
   }
 
-  b.vx = Math.max(-2, Math.min(13.2, b.vx));
+  b.vx = Math.max(-2, Math.min(13.5, b.vx));
   b.x += b.vx;
   b.y += b.vy;
   b.angle += b.angularVel;
@@ -316,8 +371,18 @@ function updateBike(b, isAI = false) {
   const groundAngle = getGroundAngle(b.x);
 
   if (b.y + 17 > groundY) {
-    const upsideDown = Math.abs(b.angle) > 2.05;
-    if (upsideDown) {
+    // Colisão com obstáculo no chão
+    if (checkObstacleCollision(b)) {
+      b.crashed = true;
+      if (b.isPlayer) {
+        gameOver = true;
+        showMessage('BATEU NO OBSTÁCULO! 💥', 99999);
+      }
+      return;
+    }
+
+    // Só cai de ponta-cabeça
+    if (Math.abs(b.angle) > 2.05) {
       b.crashed = true;
       if (b.isPlayer) {
         gameOver = true;
@@ -325,6 +390,7 @@ function updateBike(b, isAI = false) {
       }
       return;
     }
+
     b.y = groundY - 17;
     b.vy *= 0.12;
     b.onGround = true;
@@ -332,7 +398,7 @@ function updateBike(b, isAI = false) {
     b.angularVel *= 0.6;
 
     if (groundAngle < -0.22 && b.vx > 4.5) {
-      b.vy = groundAngle * b.vx * 0.92;
+      b.vy = groundAngle * b.vx * 0.95;
       b.onGround = false;
     }
   } else {
@@ -374,26 +440,43 @@ function updateRanking() {
   sorted.forEach((b, i) => {
     const name = NAMES[bikes.indexOf(b)];
     const status = b.crashed ? '💥' : (b.finished ? '🏁' : '');
-    const color = b.color;
-    html += `<div style="color:${color}">${i + 1}. ${name} ${status}</div>`;
+    html += `<div style="color:${b.color}">${i + 1}. ${name} ${status}</div>`;
   });
   rankingEl.innerHTML = html;
 }
 
 function update() {
   if (gameOver) return;
-
   bikes.forEach(b => updateBike(b));
-
-  // Câmera segue o jogador (terceira pessoa / atrás)
-  const player = bikes[0];
-  cameraX = player.x - 280;
-
-  distance = Math.max(0, Math.floor((player.x - 120) / 10));
+  cameraX = bikes[0].x - 280;
+  distance = Math.max(0, Math.floor((bikes[0].x - 120) / 10));
   distEl.textContent = distance;
-  speedEl.textContent = Math.floor(Math.abs(player.vx) * 11.5);
-
+  speedEl.textContent = Math.floor(Math.abs(bikes[0].vx) * 11.5);
   updateRanking();
+}
+
+function drawObstacles() {
+  for (const o of obstacles) {
+    const ox = o.x - cameraX;
+    if (ox < -50 || ox > 850) continue;
+
+    // Caixa / obstáculo
+    ctx.fillStyle = '#78716c';
+    ctx.fillRect(ox, o.y - o.h, o.w, o.h);
+
+    // Detalhes
+    ctx.strokeStyle = '#44403c';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ox, o.y - o.h, o.w, o.h);
+
+    // Faixa de aviso
+    ctx.fillStyle = '#f59e0b';
+    ctx.fillRect(ox, o.y - o.h, o.w, 6);
+    ctx.fillStyle = '#0f172a';
+    for (let i = 0; i < o.w; i += 10) {
+      ctx.fillRect(ox + i, o.y - o.h, 5, 6);
+    }
+  }
 }
 
 function drawBike(b) {
@@ -411,21 +494,17 @@ function drawBike(b) {
   ctx.translate(b.x - cameraX, b.y);
   ctx.rotate(b.angle);
 
-  // sombra
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
   ctx.ellipse(0, 19, 26, 5, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // corpo
   ctx.fillStyle = b.color;
   ctx.fillRect(-24, -6, 48, 12);
 
-  // banco
   ctx.fillStyle = '#1e293b';
   ctx.fillRect(-7, -12, 24, 6);
 
-  // guidão
   ctx.strokeStyle = '#94a3b8';
   ctx.lineWidth = 2.5;
   ctx.beginPath();
@@ -434,14 +513,12 @@ function drawBike(b) {
   ctx.lineTo(27, -13);
   ctx.stroke();
 
-  // rodas
   ctx.fillStyle = '#0f172a';
   ctx.beginPath();
   ctx.arc(-18, 10, 10, 0, Math.PI * 2);
   ctx.arc(18, 10, 10, 0, Math.PI * 2);
   ctx.fill();
 
-  // piloto
   ctx.fillStyle = '#fbbf24';
   ctx.beginPath();
   ctx.arc(3, -18, 7, 0, Math.PI * 2);
@@ -480,7 +557,6 @@ function drawFinishLine() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // céu
   const sky = ctx.createLinearGradient(0, 0, 0, 400);
   sky.addColorStop(0, '#0ea5e9');
   sky.addColorStop(0.42, '#38bdf8');
@@ -489,7 +565,6 @@ function draw() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, 800, 400);
 
-  // montanhas
   ctx.fillStyle = '#64748b';
   for (let i = 0; i < 8; i++) {
     const mx = ((i * 200) - cameraX * 0.22) % 900 - 100;
@@ -525,9 +600,9 @@ function draw() {
   }
   ctx.stroke();
 
+  drawObstacles();
   drawFinishLine();
 
-  // desenha adversários primeiro, jogador por cima
   for (let i = bikes.length - 1; i >= 0; i--) {
     drawBike(bikes[i]);
   }
