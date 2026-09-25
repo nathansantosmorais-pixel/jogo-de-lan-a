@@ -76,10 +76,12 @@ const player = {
   color: '#00ccff'
 };
 
-// Obstáculos
+// Obstáculos e Moedas
 let obstacles = [];
+let coins = [];
 let obstacleSpeed = 4;
 let spawnTimer = 0;
+let coinTimer = 0;
 let score = 0;
 let gameOver = false;
 let roadOffset = 0;
@@ -107,6 +109,16 @@ function spawnObstacle() {
   });
 }
 
+function spawnCoin() {
+  const laneWidth = W / 3;
+  const lane = Math.floor(Math.random() * 3);
+  coins.push({
+    x: lane * laneWidth + laneWidth / 2,
+    y: -30,
+    radius: 14
+  });
+}
+
 function update() {
   if (gameOver) return;
 
@@ -117,23 +129,30 @@ function update() {
   // Aumenta a velocidade a cada 1 segundo
   const now = Date.now();
   if (now - lastSpeedIncrease >= 1000) {
-    obstacleSpeed += 0.3; // aumenta 0.3 por segundo
+    obstacleSpeed += 0.3;
     lastSpeedIncrease = now;
     document.getElementById('speed').textContent = 'Velocidade: ' + obstacleSpeed.toFixed(1);
   }
 
   // Spawn de obstáculos
   spawnTimer++;
-  if (spawnTimer > Math.max(20, 60 - obstacleSpeed * 3)) { // spawna mais rápido conforme a velocidade sobe
+  if (spawnTimer > Math.max(20, 60 - obstacleSpeed * 3)) {
     spawnObstacle();
     spawnTimer = 0;
   }
 
-  // Movimento dos obstáculos
+  // Spawn de moedas
+  coinTimer++;
+  if (coinTimer > 40) {
+    spawnCoin();
+    coinTimer = 0;
+  }
+
+  // Movimento e colisão dos obstáculos
   for (let i = obstacles.length - 1; i >= 0; i--) {
     obstacles[i].y += obstacleSpeed;
 
-    // Colisão
+    // Colisão com obstáculo
     if (
       player.x < obstacles[i].x + obstacles[i].width &&
       player.x + player.width > obstacles[i].x &&
@@ -145,11 +164,33 @@ function update() {
       document.getElementById('restart').style.display = 'block';
     }
 
-    // Remove se saiu da tela
     if (obstacles[i].y > H) {
       obstacles.splice(i, 1);
-      score += 10;
+      score += 5; // pontos por sobreviver
       document.getElementById('score').textContent = 'Pontos: ' + score;
+    }
+  }
+
+  // Movimento e coleta de moedas
+  for (let i = coins.length - 1; i >= 0; i--) {
+    coins[i].y += obstacleSpeed;
+
+    // Colisão com moeda (coleta)
+    const coin = coins[i];
+    const dx = (player.x + player.width / 2) - coin.x;
+    const dy = (player.y + player.height / 2) - coin.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance < player.width / 2 + coin.radius) {
+      coins.splice(i, 1);
+      score += 20; // pontos por coletar moeda
+      document.getElementById('score').textContent = 'Pontos: ' + score;
+      continue;
+    }
+
+    // Remove se saiu da tela
+    if (coin.y > H + 30) {
+      coins.splice(i, 1);
     }
   }
 
@@ -159,7 +200,6 @@ function update() {
 }
 
 function drawRoad() {
-  // Fundo da pista
   ctx.fillStyle = '#333';
   ctx.fillRect(0, 0, W, H);
 
@@ -168,7 +208,7 @@ function drawRoad() {
   ctx.fillRect(5, 0, 8, H);
   ctx.fillRect(W - 13, 0, 8, H);
 
-  // Linhas do meio (tracejadas)
+  // Linhas do meio
   ctx.fillStyle = '#ffff00';
   for (let y = -40 + roadOffset; y < H; y += 40) {
     ctx.fillRect(W / 3 - 4, y, 8, 25);
@@ -198,20 +238,46 @@ function drawCar(x, y, color) {
   ctx.fillRect(x + 37, y + 45, 8, 20);
 }
 
+function drawCoin(x, y, radius) {
+  // Moeda dourada
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd700';
+  ctx.fill();
+  ctx.strokeStyle = '#b8860b';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Símbolo $ no meio
+  ctx.fillStyle = '#b8860b';
+  ctx.font = 'bold 16px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('$', x, y);
+}
+
 function draw() {
   drawRoad();
   drawCar(player.x, player.y, player.color);
 
+  // Desenha obstáculos
   obstacles.forEach(obs => {
     drawCar(obs.x, obs.y, obs.color);
+  });
+
+  // Desenha moedas
+  coins.forEach(coin => {
+    drawCoin(coin.x, coin.y, coin.radius);
   });
 }
 
 function restart() {
   obstacles = [];
+  coins = [];
   score = 0;
   obstacleSpeed = 4;
   spawnTimer = 0;
+  coinTimer = 0;
   gameOver = false;
   lastSpeedIncrease = Date.now();
   player.x = W / 2 - 20;
