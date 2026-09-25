@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -32,6 +31,11 @@
     font-size: 28px;
     font-weight: bold;
   }
+  #speed {
+    font-size: 18px;
+    color: #aaa;
+    margin-top: 5px;
+  }
   #gameOver {
     display: none;
     font-size: 36px;
@@ -49,6 +53,7 @@
 <body>
   <div id="ui">
     <div id="score">Pontos: 0</div>
+    <div id="speed">Velocidade: 4.0</div>
     <div id="gameOver">GAME OVER</div>
     <div id="restart">Pressione ESPAÇO para reiniciar</div>
   </div>
@@ -79,6 +84,9 @@ let score = 0;
 let gameOver = false;
 let roadOffset = 0;
 
+// Controle de tempo para aumentar velocidade a cada segundo
+let lastSpeedIncrease = Date.now();
+
 // Controles
 const keys = {};
 window.addEventListener('keydown', e => {
@@ -106,9 +114,17 @@ function update() {
   if (keys['ArrowLeft'] && player.x > 10) player.x -= player.speed;
   if (keys['ArrowRight'] && player.x < W - player.width - 10) player.x += player.speed;
 
+  // Aumenta a velocidade a cada 1 segundo
+  const now = Date.now();
+  if (now - lastSpeedIncrease >= 1000) {
+    obstacleSpeed += 0.3; // aumenta 0.3 por segundo
+    lastSpeedIncrease = now;
+    document.getElementById('speed').textContent = 'Velocidade: ' + obstacleSpeed.toFixed(1);
+  }
+
   // Spawn de obstáculos
   spawnTimer++;
-  if (spawnTimer > 50) {
+  if (spawnTimer > Math.max(20, 60 - obstacleSpeed * 3)) { // spawna mais rápido conforme a velocidade sobe
     spawnObstacle();
     spawnTimer = 0;
   }
@@ -134,9 +150,6 @@ function update() {
       obstacles.splice(i, 1);
       score += 10;
       document.getElementById('score').textContent = 'Pontos: ' + score;
-
-      // Aumenta dificuldade
-      if (score % 100 === 0) obstacleSpeed += 0.5;
     }
   }
 
@@ -200,8 +213,10 @@ function restart() {
   obstacleSpeed = 4;
   spawnTimer = 0;
   gameOver = false;
+  lastSpeedIncrease = Date.now();
   player.x = W / 2 - 20;
   document.getElementById('score').textContent = 'Pontos: 0';
+  document.getElementById('speed').textContent = 'Velocidade: 4.0';
   document.getElementById('gameOver').style.display = 'none';
   document.getElementById('restart').style.display = 'none';
 }
